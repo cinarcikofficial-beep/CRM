@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
+import Image from 'next/image';
 
 interface ClientData {
   id: string;
@@ -166,11 +167,13 @@ export default function ClientsPage() {
     return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   };
 
+  // Geliştirilmiş Filtreleme: Firma ismi, Yetkili kişi VEYA Durum alanına göre arar
   const filteredClients = clients.filter((client) => {
     const searchLower = searchQuery.toLowerCase();
     return (
       client.company_name?.toLowerCase().includes(searchLower) ||
-      client.contact_person?.toLowerCase().includes(searchLower)
+      client.contact_person?.toLowerCase().includes(searchLower) ||
+      client.status?.toLowerCase().includes(searchLower)
     );
   });
 
@@ -178,18 +181,35 @@ export default function ClientsPage() {
     <div className="min-h-screen bg-black text-white p-6 relative">
       <div className="max-w-7xl mx-auto space-y-6">
         
-        {/* ÜST BAŞLIK */}
-        <div className="flex items-center justify-between border-b border-zinc-900 pb-4">
-          <div>
+        {/* LOGOLU ÜST BAŞLIK */}
+        <div className="grid grid-cols-1 md:grid-cols-3 items-center border-b border-zinc-900 pb-4 gap-4">
+          {/* Sol: Başlık metinleri */}
+          <div className="text-center md:text-left">
             <h1 className="text-xl font-black tracking-tight">Müşteri Yönetimi</h1>
             <p className="text-xs text-zinc-500">Müşterilerinizi ekleyin, güncelleyin ve filtreleyin.</p>
           </div>
-          <button 
-            onClick={() => router.push('/reports')}
-            className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-indigo-400 hover:text-indigo-300 font-black text-xs px-4 py-2 rounded-lg transition-all shadow-md flex items-center gap-2"
-          >
-            📊 Raporlama Sayfasına Git →
-          </button>
+
+          {/* Orta: Şirket Logosu */}
+          <div className="flex justify-center items-center">
+            <Image
+              src="/verytech_beyaz.png"
+              alt="Verytech CRM Logo"
+              width={160}
+              height={40}
+              priority
+              className="object-contain"
+            />
+          </div>
+
+          {/* Sağ: Raporlama Butonu */}
+          <div className="flex justify-center md:justify-end items-center">
+            <button 
+              onClick={() => router.push('/reports')}
+              className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-indigo-400 hover:text-indigo-300 font-black text-xs px-4 py-2 rounded-lg transition-all shadow-md flex items-center gap-2"
+            >
+              📊 Raporlama Sayfasına Git →
+            </button>
+          </div>
         </div>
 
         {/* YENİ MÜŞTERİ EKLEME FORMU */}
@@ -262,14 +282,14 @@ export default function ClientsPage() {
         <div>
           <input
             type="text"
-            placeholder="Müşteri veya yetkili adı ile filtreleyin..."
+            placeholder="Müşteri, yetkili adı veya durum (Aktif, Potansiyel, Pasif) ile filtreleyin..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full max-w-md bg-zinc-900/50 border border-zinc-800 text-xs px-4 py-2.5 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 transition-colors"
           />
         </div>
 
-        {/* MÜŞTERİ TABLOSU */}
+        {/* MÜŞTERI TABLOSU */}
         <div className="bg-zinc-950 border border-zinc-900 rounded-xl overflow-hidden shadow-xl">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -290,7 +310,7 @@ export default function ClientsPage() {
                 </tr>
               ) : filteredClients.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-zinc-500 font-medium">Kayıtlı müşteri bulunamadı.</td>
+                  <td colSpan={7} className="py-8 text-center text-zinc-500 font-medium">Kayıtlı veya arama kriterine uygun müşteri bulunamadı.</td>
                 </tr>
               ) : (
                 filteredClients.map((client, index) => (
@@ -313,7 +333,11 @@ export default function ClientsPage() {
                       {formatDateTime(client.created_at)}
                     </td>
                     <td className="py-4 px-4">
-                      <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wide bg-zinc-900 text-indigo-400 border border-zinc-800">
+                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wide border ${
+                        client.status === 'Aktif Müşteri' ? 'bg-emerald-950/40 text-emerald-400 border-emerald-900/60' :
+                        client.status === 'Pasif' ? 'bg-zinc-900 text-zinc-400 border-zinc-800' :
+                        'bg-indigo-950/40 text-indigo-400 border-indigo-900/60'
+                      }`}>
                         {client.status || 'Potansiyel'}
                       </span>
                     </td>
