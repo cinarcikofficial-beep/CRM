@@ -12,6 +12,8 @@ interface ClientData {
   email: string | null;
   phone: string | null;
   status: string | null;
+  city: any;       // Olası obje tipi hatalarını önlemek için any yaptık
+  district: any;   
   created_at: string;
 }
 
@@ -29,6 +31,8 @@ export default function ClientsPage() {
   const [newContactPerson, setNewContactPerson] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPhone, setNewPhone] = useState('');
+  const [newCity, setNewCity] = useState('');          
+  const [newDistrict, setNewDistrict] = useState('');  
   const [newStatus, setNewStatus] = useState('Potansiyel');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -39,6 +43,8 @@ export default function ClientsPage() {
   const [editContactPerson, setEditContactPerson] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editPhone, setEditPhone] = useState('');
+  const [editCity, setEditCity] = useState('');        
+  const [editDistrict, setEditDistrict] = useState('');
   const [editStatus, setEditStatus] = useState('Potansiyel');
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -75,10 +81,12 @@ export default function ClientsPage() {
         .from('clients')
         .insert([
           {
-            company_name: newCompanyName,
-            contact_person: newContactPerson || null,
-            email: newEmail || null,
-            phone: newPhone || null,
+            company_name: newCompanyName.trim(),
+            contact_person: newContactPerson.trim() || null,
+            email: newEmail.trim() || null,
+            phone: newPhone.trim() || null,
+            city: newCity.trim() || null,            
+            district: newDistrict.trim() || null,    
             status: newStatus,
           },
         ])
@@ -92,6 +100,8 @@ export default function ClientsPage() {
         setNewContactPerson('');
         setNewEmail('');
         setNewPhone('');
+        setNewCity('');
+        setNewDistrict('');
         setNewStatus('Potansiyel');
       }
     } catch (error: any) {
@@ -101,7 +111,7 @@ export default function ClientsPage() {
     }
   };
 
-  // 3. Müşteri Silme (🗑️)
+  // 3. Müşteri Silme
   const handleDeleteClient = async (id: string, name: string) => {
     const confirmDelete = confirm(`"${name}" isimli müşteriyi silmek istediğinize emin misiniz?`);
     if (!confirmDelete) return;
@@ -122,11 +132,13 @@ export default function ClientsPage() {
     setEditContactPerson(client.contact_person || '');
     setEditEmail(client.email || '');
     setEditPhone(client.phone || '');
+    setEditCity(typeof client.city === 'string' ? client.city : '');                
+    setEditDistrict(typeof client.district === 'string' ? client.district : '');        
     setEditStatus(client.status || 'Potansiyel');
     setIsEditModalOpen(true);
   };
 
-  // 5. Güncelleme Kaydetme (✏️)
+  // 5. Güncelleme Kaydetme
   const handleUpdateClient = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingClient || !editCompanyName.trim()) return;
@@ -136,10 +148,12 @@ export default function ClientsPage() {
       const { error } = await supabase
         .from('clients')
         .update({
-          company_name: editCompanyName,
-          contact_person: editContactPerson || null,
-          email: editEmail || null,
-          phone: editPhone || null,
+          company_name: editCompanyName.trim(),
+          contact_person: editContactPerson.trim() || null,
+          email: editEmail.trim() || null,
+          phone: editPhone.trim() || null,
+          city: editCity.trim() || null,            
+          district: editDistrict.trim() || null,    
           status: editStatus,
         })
         .eq('id', editingClient.id);
@@ -149,7 +163,16 @@ export default function ClientsPage() {
       setClients((prev) =>
         prev.map((c) =>
           c.id === editingClient.id
-            ? { ...c, company_name: editCompanyName, contact_person: editContactPerson, email: editEmail, phone: editPhone, status: editStatus }
+            ? { 
+                ...c, 
+                company_name: editCompanyName, 
+                contact_person: editContactPerson, 
+                email: editEmail, 
+                phone: editPhone, 
+                city: editCity, 
+                district: editDistrict, 
+                status: editStatus 
+              }
             : c
         )
       );
@@ -167,13 +190,18 @@ export default function ClientsPage() {
     return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   };
 
-  // Geliştirilmiş Filtreleme: Firma ismi, Yetkili kişi VEYA Durum alanına göre arar
+  // Geliştirilmiş Filtreleme (Güvenli String Kontrolü Yapıldı)
   const filteredClients = clients.filter((client) => {
     const searchLower = searchQuery.toLowerCase();
+    const cityStr = client.city && typeof client.city === 'string' ? client.city.toLowerCase() : '';
+    const districtStr = client.district && typeof client.district === 'string' ? client.district.toLowerCase() : '';
+    
     return (
       client.company_name?.toLowerCase().includes(searchLower) ||
       client.contact_person?.toLowerCase().includes(searchLower) ||
-      client.status?.toLowerCase().includes(searchLower)
+      client.status?.toLowerCase().includes(searchLower) ||
+      cityStr.includes(searchLower) ||        
+      districtStr.includes(searchLower)       
     );
   });
 
@@ -183,13 +211,11 @@ export default function ClientsPage() {
         
         {/* LOGOLU ÜST BAŞLIK */}
         <div className="grid grid-cols-1 md:grid-cols-3 items-center border-b border-zinc-900 pb-4 gap-4">
-          {/* Sol: Başlık metinleri */}
           <div className="text-center md:text-left">
             <h1 className="text-xl font-black tracking-tight">Müşteri Yönetimi</h1>
             <p className="text-xs text-zinc-500">Müşterilerinizi ekleyin, güncelleyin ve filtreleyin.</p>
           </div>
 
-          {/* Orta: Şirket Logosu */}
           <div className="flex justify-center items-center">
             <Image
               src="/verytech_beyaz.png"
@@ -201,7 +227,6 @@ export default function ClientsPage() {
             />
           </div>
 
-          {/* Sağ: Raporlama Butonu */}
           <div className="flex justify-center md:justify-end items-center">
             <button 
               onClick={() => router.push('/reports')}
@@ -215,9 +240,9 @@ export default function ClientsPage() {
         {/* YENİ MÜŞTERİ EKLEME FORMU */}
         <div className="bg-zinc-950 border border-zinc-900 rounded-xl p-5 shadow-xl">
           <h2 className="text-sm font-black uppercase tracking-wider text-zinc-400 mb-4">Yeni Müşteri Ekle</h2>
-          <form onSubmit={handleAddClient} className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
-            <div className="space-y-1">
-              <label className="text-[11px] text-zinc-500 font-bold uppercase">Firma / Müşteri Adı *</label>
+          <form onSubmit={handleAddClient} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 items-end">
+            <div className="space-y-1 lg:col-span-1">
+              <label className="text-[11px] text-zinc-500 font-bold uppercase">Firma Adı *</label>
               <input
                 type="text"
                 placeholder="Firma / Müşteri Adı"
@@ -257,6 +282,26 @@ export default function ClientsPage() {
               />
             </div>
             <div className="space-y-1">
+              <label className="text-[11px] text-zinc-500 font-bold uppercase">İl</label>
+              <input
+                type="text"
+                placeholder="Örn: İstanbul"
+                value={newCity}
+                onChange={(e) => setNewCity(e.target.value)}
+                className="w-full bg-zinc-900 border border-zinc-800 text-xs px-3 py-2 rounded-lg text-white focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[11px] text-zinc-500 font-bold uppercase">İlçe</label>
+              <input
+                type="text"
+                placeholder="Örn: Kadıköy"
+                value={newDistrict}
+                onChange={(e) => setNewDistrict(e.target.value)}
+                className="w-full bg-zinc-900 border border-zinc-800 text-xs px-3 py-2 rounded-lg text-white focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+            <div className="space-y-1">
               <label className="text-[11px] text-zinc-500 font-bold uppercase">Durum</label>
               <select
                 value={newStatus}
@@ -271,9 +316,9 @@ export default function ClientsPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-800 text-white font-black text-xs px-4 py-2 rounded-lg transition-colors shadow-md h-[38px]"
+              className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-800 text-white font-black text-xs px-4 py-2 rounded-lg transition-colors shadow-md h-[38px] w-full"
             >
-              {isSubmitting ? 'Oluşturuluyor...' : '+ Müşteri Oluştur'}
+              {isSubmitting ? '...' : '+ Oluştur'}
             </button>
           </form>
         </div>
@@ -282,7 +327,7 @@ export default function ClientsPage() {
         <div>
           <input
             type="text"
-            placeholder="Müşteri, yetkili adı veya durum (Aktif, Potansiyel, Pasif) ile filtreleyin..."
+            placeholder="Müşteri, yetkili, durum veya şehir/ilçe ile filtreleyin..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full max-w-md bg-zinc-900/50 border border-zinc-800 text-xs px-4 py-2.5 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 transition-colors"
@@ -297,6 +342,7 @@ export default function ClientsPage() {
                 <th className="py-3.5 px-4 w-12 text-center">#</th>
                 <th className="py-3.5 px-4">Müşteri / Firma Adı</th>
                 <th className="py-3.5 px-4">Yetkili Kişi</th>
+                <th className="py-3.5 px-4">Bölge (İl / İlçe)</th> 
                 <th className="py-3.5 px-4">İletişim Bilgileri</th>
                 <th className="py-3.5 px-4">Kayıt Tarihi</th>
                 <th className="py-3.5 px-4">Durum</th>
@@ -306,11 +352,11 @@ export default function ClientsPage() {
             <tbody className="divide-y divide-zinc-900 text-xs">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-zinc-500 font-medium">Müşteriler yükleniyor...</td>
+                  <td colSpan={8} className="py-8 text-center text-zinc-500 font-medium">Müşteriler yükleniyor...</td>
                 </tr>
               ) : filteredClients.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-zinc-500 font-medium">Kayıtlı veya arama kriterine uygun müşteri bulunamadı.</td>
+                  <td colSpan={8} className="py-8 text-center text-zinc-500 font-medium">Kayıtlı veya arama kriterine uygun müşteri bulunamadı.</td>
                 </tr>
               ) : (
                 filteredClients.map((client, index) => (
@@ -324,6 +370,21 @@ export default function ClientsPage() {
                     <td className="py-4 px-4 font-medium text-zinc-300">
                       {client.contact_person || '-'}
                     </td>
+                    
+                    {/* 🛠️ KURŞUN GEÇİRMEZ İL / İLÇE HÜCRESİ */}
+                    <td className="py-4 px-4 font-medium text-zinc-300">
+                      {client.city && typeof client.city === 'string' || client.district && typeof client.district === 'string' ? (
+                        <span>
+                          {String(client.city || '-')}{' '}
+                          <span className="text-zinc-500 text-[11px]">
+                            ({String(client.district || '-')})
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-zinc-600">—</span>
+                      )}
+                    </td>
+
                     <td className="py-4 px-4 space-y-0.5 text-zinc-400 font-mono text-[11px]">
                       {client.email && <div className="block">{client.email}</div>}
                       {client.phone && <div className="block text-zinc-500">{client.phone}</div>}
@@ -393,6 +454,16 @@ export default function ClientsPage() {
                 <div className="space-y-1">
                   <label className="text-[11px] text-zinc-500 font-bold uppercase">Telefon</label>
                   <input type="text" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 px-3 py-2 rounded-lg text-white" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] text-zinc-500 font-bold uppercase">İl</label>
+                  <input type="text" value={editCity} onChange={(e) => setEditCity(e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 px-3 py-2 rounded-lg text-white" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] text-zinc-500 font-bold uppercase">İlçe</label>
+                  <input type="text" value={editDistrict} onChange={(e) => setEditDistrict(e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 px-3 py-2 rounded-lg text-white" />
                 </div>
               </div>
               <div className="space-y-1">

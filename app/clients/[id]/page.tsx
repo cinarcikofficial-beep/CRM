@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
+import Image from 'next/image';
 
 interface ClientData {
   id: string;
@@ -11,6 +12,8 @@ interface ClientData {
   email: string;
   phone: string;
   status: string;
+  city: string | null;       
+  district: string | null;   
   created_at: string;
 }
 
@@ -106,7 +109,6 @@ export default function ClientDetailPage() {
     }
   };
 
-  // Aktivite Notunu Güncelleme Fonksiyonu
   const handleUpdateActivity = async (actId: string) => {
     if (!editingNotes.trim()) return;
     setEditLoading(true);
@@ -118,7 +120,6 @@ export default function ClientDetailPage() {
 
       if (error) throw error;
 
-      // State'i yerel olarak güncelle ve düzenleme modundan çık
       setActivities((prev) =>
         prev.map((act) => (act.id === actId ? { ...act, notes: editingNotes } : act))
       );
@@ -146,6 +147,7 @@ export default function ClientDetailPage() {
     return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()} - ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   };
 
+  // 🛠️ Kritik Düzeltme: Yükleme ekranını buraya çektik, böylece veri gelene kadar aşağıdaki arayüz elementleri render edilip çökme yaratmaz.
   if (loading) return <div className="p-8 text-white text-center text-sm font-medium">Yükleniyor...</div>;
   if (!client) return <div className="p-8 text-red-400 text-center text-sm font-bold">Müşteri kaydı bulunamadı.</div>;
 
@@ -153,16 +155,38 @@ export default function ClientDetailPage() {
     <div className="min-h-screen bg-black text-white p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         
-        <button 
-          onClick={() => router.push('/clients')}
-          className="text-xs bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-lg text-zinc-400 hover:text-white transition-colors"
-        >
-          ← Müşteri Listesine Dön
-        </button>
+        {/* LOGOLU ÜST HEADER BARI */}
+        <div className="grid grid-cols-1 md:grid-cols-3 items-center border-b border-zinc-900 pb-4 gap-4">
+          <div className="text-center md:text-left">
+            <button 
+              onClick={() => router.push('/clients')}
+              className="text-xs bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-lg text-zinc-400 hover:text-white transition-colors"
+            >
+              ← Müşteri Listesine Dön
+            </button>
+          </div>
+
+          <div className="flex justify-center items-center">
+            <Image
+              src="/verytech_beyaz.png"
+              alt="Verytech CRM Logo"
+              width={160}
+              height={40}
+              priority
+              className="object-contain"
+            />
+          </div>
+
+          <div className="flex justify-center md:justify-end items-center">
+            <span className="text-[11px] text-zinc-600 bg-zinc-950 border border-zinc-900 px-3 py-1 rounded-full font-mono">
+              v1.0.0 Live
+            </span>
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           
-          {/* SOL: Tasarımı Korunan Müşteri Künye Kartı */}
+          {/* SOL: Müşteri Künye Kartı */}
           <div className="bg-zinc-950 border border-zinc-800 p-5 rounded-xl space-y-4 shadow-xl lg:sticky lg:top-6">
             <div className="border-b border-zinc-800 pb-3">
               <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 mb-2 inline-block">
@@ -173,15 +197,27 @@ export default function ClientDetailPage() {
             <div className="text-xs space-y-3 text-zinc-300">
               <div>
                 <span className="text-zinc-600 block text-[10px] uppercase font-bold">Yetkili</span>
-                <p className="font-medium">{client.contact_person}</p>
+                <p className="font-medium">{client.contact_person || '-'}</p>
               </div>
               <div>
                 <span className="text-zinc-600 block text-[10px] uppercase font-bold">E-posta</span>
-                <p className="font-mono text-zinc-400">{client.email}</p>
+                <p className="font-mono text-zinc-400">{client.email || '-'}</p>
               </div>
               <div>
                 <span className="text-zinc-600 block text-[10px] uppercase font-bold">Telefon</span>
                 <p className="font-mono text-zinc-400">{client.phone || '-'}</p>
+              </div>
+              
+              {/* 🛡️ Tamamen Güvenli İl/İlçe Alanı */}
+              <div>
+                <span className="text-zinc-600 block text-[10px] uppercase font-bold">Bölge (İl / İlçe)</span>
+                <p className="font-medium text-zinc-300">
+                  {client.city || client.district ? (
+                    `${String(client.city || '-')} / ${String(client.district || '-')}`
+                  ) : (
+                    <span className="text-zinc-600">—</span>
+                  )}
+                </p>
               </div>
             </div>
           </div>
@@ -255,7 +291,6 @@ export default function ClientDetailPage() {
                           <span className="text-[11px] text-zinc-500 font-mono">{formatDateTime(act.activity_date)}</span>
                         </div>
                         
-                        {/* Sağ üst buton grubu */}
                         <div className="flex items-center gap-3">
                           {editingId !== act.id && (
                             <button 
