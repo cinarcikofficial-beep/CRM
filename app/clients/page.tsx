@@ -12,9 +12,21 @@ interface ClientData {
   email: string | null;
   phone: string | null;
   status: string | null;
-  city: any;       // Olası obje tipi hatalarını önlemek için any yaptık
+  city: any;       
   district: any;   
   created_at: string;
+}
+
+interface ReminderData {
+  id: string;
+  client_id: string;
+  type: string;
+  notes: string | null;
+  next_followup_date: string;
+  is_completed: boolean;
+  clients: {
+    company_name: string;
+  } | null;
 }
 
 export default function ClientsPage() {
@@ -26,7 +38,13 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Yeni Müşteri Ekleme Form State'leri
+  // 🔔 Hatırlatmak State'leri
+  const [reminders, setReminders] = useState<ReminderData[]>([]);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [postponeReminderId, setPostponeReminderId] = useState<string | null>(null);
+  const [customPostponeDate, setCustomPostponeDate] = useState('');
+
+  // Form State'leri
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newContactPerson, setNewContactPerson] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -48,7 +66,6 @@ export default function ClientsPage() {
   const [editStatus, setEditStatus] = useState('Potansiyel');
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // 1. Mevcut Müşterileri Listeleme
   const fetchClients = async () => {
     try {
       setLoading(true);
@@ -66,11 +83,73 @@ export default function ClientsPage() {
     }
   };
 
+  const fetchReminders = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('activities')
+        .select(`
+          id,
+          client_id,
+          type,
+          notes,
+          next_followup_date,
+          is_completed,
+          clients (
+            company_name
+          )
+        `)
+        .not('next_followup_date', 'is', null)
+        .eq('is_completed', false)
+        .order('next_followup_date', { ascending: true });
+
+      if (error) throw error;
+      setReminders((data as any) || []);
+    } catch (error) {
+      console.error('Hatırlatmalar yüklenirken hata:', error);
+    }
+  };
+
   useEffect(() => {
     fetchClients();
+    fetchReminders();
   }, []);
 
-  // 2. Yeni Müşteri Kaydetme
+  const handleCompleteReminder = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('activities')
+        .update({ is_completed: true })
+        .eq('id', id);
+
+      if (error) throw error;
+      setReminders((prev) => prev.filter((item) => item.id !== id));
+    } catch (error: any) {
+      alert('İşlem başarısız: ' + error.message);
+    }
+  };
+
+  const handleCustomPostpone = async (id: string) => {
+    if (!customPostponeDate) return alert('Lütfen ileri bir tarih seçin.');
+
+    try {
+      const selectedDate = new Date(customPostponeDate).toISOString();
+
+      const { error } = await supabase
+        .from('activities')
+        .update({ next_followup_date: selectedDate })
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      setPostponeReminderId(null);
+      setCustomPostponeDate('');
+      fetchReminders();
+      alert('Hatırlatma başarıyla güncellendi.');
+    } catch (error: any) {
+      alert('Erteleme başarısız: ' + error.message);
+    }
+  };
+
   const handleAddClient = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCompanyName.trim()) return alert('Müşteri / Firma Adı zorunludur.');
@@ -111,7 +190,6 @@ export default function ClientsPage() {
     }
   };
 
-  // 3. Müşteri Silme
   const handleDeleteClient = async (id: string, name: string) => {
     const confirmDelete = confirm(`"${name}" isimli müşteriyi silmek istediğinize emin misiniz?`);
     if (!confirmDelete) return;
@@ -125,7 +203,6 @@ export default function ClientsPage() {
     }
   };
 
-  // 4. Düzenleme Modalını Açma
   const openEditModal = (client: ClientData) => {
     setEditingClient(client);
     setEditCompanyName(client.company_name || '');
@@ -138,7 +215,6 @@ export default function ClientsPage() {
     setIsEditModalOpen(true);
   };
 
-  // 5. Güncelleme Kaydetme
   const handleUpdateClient = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingClient || !editCompanyName.trim()) return;
@@ -190,7 +266,13 @@ export default function ClientsPage() {
     return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   };
 
-  // Geliştirilmiş Filtreleme (Güvenli String Kontrolü Yapıldı)
+  // 🛠️ BUGÜNÜN VE GELECEĞİN HATIRLATMALARINI AYIRMA MANTIĞI
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999); // Bugünün son saniyesi
+
+  const todaysReminders = reminders.filter(r => new Date(r.next_followup_date) <= todayEnd);
+  const futureReminders = reminders.filter(r => new Date(r.next_followup_date) > todayEnd);
+
   const filteredClients = clients.filter((client) => {
     const searchLower = searchQuery.toLowerCase();
     const cityStr = client.city && typeof client.city === 'string' ? client.city.toLowerCase() : '';
@@ -210,7 +292,7 @@ export default function ClientsPage() {
       <div className="max-w-7xl mx-auto space-y-6">
         
         {/* LOGOLU ÜST BAŞLIK */}
-        <div className="grid grid-cols-1 md:grid-cols-3 items-center border-b border-zinc-900 pb-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 items-center border-b border-zinc-900 pb-4 gap-4 relative z-40">
           <div className="text-center md:text-left">
             <h1 className="text-xl font-black tracking-tight">Müşteri Yönetimi</h1>
             <p className="text-xs text-zinc-500">Müşterilerinizi ekleyin, güncelleyin ve filtreleyin.</p>
@@ -227,10 +309,142 @@ export default function ClientsPage() {
             />
           </div>
 
-          <div className="flex justify-center md:justify-end items-center">
+          {/* EN SAĞ ALAN: ZİL VE RAPORLAMA BUTONU YAN YANA */}
+          <div className="flex justify-center md:justify-end items-center gap-3 relative">
+            
+            {/* 🔔 ZİL BİLDİRİM BUTONU */}
+            <div className="relative">
+              <button 
+                onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+                className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 p-2 rounded-lg transition-all text-lg relative flex items-center justify-center h-[38px] w-[38px]"
+              >
+                🔔
+                {reminders.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-600 text-[10px] font-black font-mono px-1.5 py-0.5 rounded-full text-white animate-pulse">
+                    {reminders.length}
+                  </span>
+                )}
+              </button>
+
+              {/* 🔔 BİLDİRİM PANELİ */}
+              {isNotificationOpen && (
+                <div className="absolute top-12 right-0 bg-zinc-950 border border-zinc-800 w-80 md:w-96 rounded-xl shadow-2xl overflow-hidden p-4 space-y-4 z-50 max-h-[500px] overflow-y-auto">
+                  <div className="flex items-center justify-between border-b border-zinc-900 pb-2">
+                    <span className="text-xs font-black tracking-wide uppercase text-zinc-400">Hatırlatma Paneli ({reminders.length})</span>
+                    <button onClick={() => { setIsNotificationOpen(false); setPostponeReminderId(null); }} className="text-zinc-500 hover:text-white text-xs">✕</button>
+                  </div>
+
+                  {reminders.length === 0 ? (
+                    <p className="text-xs text-center text-zinc-600 py-4">Bekleyen hatırlatmanız bulunmuyor 🎉</p>
+                  ) : (
+                    <div className="space-y-4">
+                      
+                      {/* 🛠️ 1. KISIM: BUGÜNÜN HATIRLATMALARI */}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-block h-2 w-2 rounded-full bg-red-500 animate-ping"></span>
+                          <h4 className="text-[11px] font-black tracking-wider text-red-400 uppercase">Bugünün Hatırlatmaları ({todaysReminders.length})</h4>
+                        </div>
+                        {todaysReminders.length === 0 ? (
+                          <p className="text-[11px] text-zinc-600 italic bg-zinc-900/20 p-2 rounded border border-zinc-900/40">Bugün yapılması gereken acil bir iş yok.</p>
+                        ) : (
+                          <div className="space-y-2 divide-y divide-zinc-900">
+                            {todaysReminders.map((item) => (
+                              <div key={item.id} className="pt-2 first:pt-0 space-y-2 text-xs">
+                                <div className="flex justify-between items-start gap-2">
+                                  <span className="font-black text-indigo-400 block hover:underline cursor-pointer break-words flex-1" onClick={() => { router.push(`/clients/${item.client_id}`); setIsNotificationOpen(false); }}>
+                                    {item.clients?.company_name}
+                                  </span>
+                                  <span className="text-[10px] font-mono text-red-400 font-bold bg-red-500/10 border border-red-500/20 px-1.5 py-0.5 rounded whitespace-nowrap">
+                                    {formatDateTime(item.next_followup_date)}
+                                  </span>
+                                </div>
+                                <p className="text-zinc-400 text-[11px] line-clamp-2 italic bg-zinc-900/40 p-1.5 rounded border border-zinc-900 break-words">
+                                  "{item.notes || 'Not girilmemiş.'}"
+                                </p>
+
+                                {postponeReminderId === item.id ? (
+                                  <div className="bg-zinc-900 p-2 rounded border border-zinc-800 space-y-2">
+                                    <label className="text-[10px] text-zinc-400 font-bold block uppercase">Yeni Hatırlatma Tarihi:</label>
+                                    <input 
+                                      type="datetime-local" 
+                                      value={customPostponeDate}
+                                      onChange={(e) => setCustomPostponeDate(e.target.value)}
+                                      className="w-full bg-black border border-zinc-800 text-[11px] p-1.5 rounded text-white focus:outline-none focus:border-indigo-500"
+                                    />
+                                    <div className="flex justify-end gap-1.5">
+                                      <button onClick={() => setPostponeReminderId(null)} className="text-[10px] px-2 py-1 rounded bg-zinc-800 text-zinc-400 font-bold">İptal</button>
+                                      <button onClick={() => handleCustomPostpone(item.id)} className="text-[10px] px-2 py-1 rounded bg-indigo-600 text-white font-black">Kaydet</button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-end gap-2 pt-0.5">
+                                    <button onClick={() => setPostponeReminderId(item.id)} className="bg-zinc-900 hover:bg-zinc-800 text-[10px] font-bold text-zinc-400 px-2 py-1 rounded border border-zinc-800 transition-colors">⏳ Ertele</button>
+                                    <button onClick={() => handleCompleteReminder(item.id)} className="bg-emerald-950/60 hover:bg-emerald-900 text-[10px] font-black text-emerald-400 px-2 py-1 rounded border border-emerald-900/60 transition-colors">✓ Tamamlandı</button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 🛠️ 2. KISIM: GELECEK HATIRLATMALAR */}
+                      <div className="space-y-2 pt-2 border-t border-zinc-900">
+                        <h4 className="text-[11px] font-black tracking-wider text-zinc-500 uppercase">Gelecek Hatırlatmalar ({futureReminders.length})</h4>
+                        {futureReminders.length === 0 ? (
+                          <p className="text-[11px] text-zinc-600 italic bg-zinc-900/20 p-2 rounded border border-zinc-900/40">İleri tarihli bir hatırlatma yok.</p>
+                        ) : (
+                          <div className="space-y-2 divide-y divide-zinc-900">
+                            {futureReminders.map((item) => (
+                              <div key={item.id} className="pt-2 first:pt-0 space-y-2 text-xs">
+                                <div className="flex justify-between items-start gap-2">
+                                  <span className="font-black text-indigo-400 block hover:underline cursor-pointer break-words flex-1" onClick={() => { router.push(`/clients/${item.client_id}`); setIsNotificationOpen(false); }}>
+                                    {item.clients?.company_name}
+                                  </span>
+                                  <span className="text-[10px] font-mono text-zinc-500 font-bold bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded whitespace-nowrap">
+                                    {formatDateTime(item.next_followup_date)}
+                                  </span>
+                                </div>
+                                <p className="text-zinc-500 text-[11px] line-clamp-2 italic bg-zinc-900/40 p-1.5 rounded border border-zinc-900 break-words">
+                                  "{item.notes || 'Not girilmemiş.'}"
+                                </p>
+
+                                {postponeReminderId === item.id ? (
+                                  <div className="bg-zinc-900 p-2 rounded border border-zinc-800 space-y-2">
+                                    <label className="text-[10px] text-zinc-400 font-bold block uppercase">Yeni Hatırlatma Tarihi:</label>
+                                    <input 
+                                      type="datetime-local" 
+                                      value={customPostponeDate}
+                                      onChange={(e) => setCustomPostponeDate(e.target.value)}
+                                      className="w-full bg-black border border-zinc-800 text-[11px] p-1.5 rounded text-white focus:outline-none focus:border-indigo-500"
+                                    />
+                                    <div className="flex justify-end gap-1.5">
+                                      <button onClick={() => setPostponeReminderId(null)} className="text-[10px] px-2 py-1 rounded bg-zinc-800 text-zinc-400 font-bold">İptal</button>
+                                      <button onClick={() => handleCustomPostpone(item.id)} className="text-[10px] px-2 py-1 rounded bg-indigo-600 text-white font-black">Kaydet</button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-end gap-2 pt-0.5">
+                                    <button onClick={() => setPostponeReminderId(item.id)} className="bg-zinc-900 hover:bg-zinc-800 text-[10px] font-bold text-zinc-400 px-2 py-1 rounded border border-zinc-800 transition-colors">⏳ Ertele</button>
+                                    <button onClick={() => handleCompleteReminder(item.id)} className="bg-emerald-950/60 hover:bg-emerald-900 text-[10px] font-black text-emerald-400 px-2 py-1 rounded border border-emerald-900/60 transition-colors">✓ Tamamlandı</button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <button 
               onClick={() => router.push('/reports')}
-              className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-indigo-400 hover:text-indigo-300 font-black text-xs px-4 py-2 rounded-lg transition-all shadow-md flex items-center gap-2"
+              className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-indigo-400 hover:text-indigo-300 font-black text-xs px-4 py-2 rounded-lg transition-all shadow-md flex items-center gap-2 h-[38px]"
             >
               📊 Raporlama Sayfasına Git →
             </button>
@@ -370,8 +584,6 @@ export default function ClientsPage() {
                     <td className="py-4 px-4 font-medium text-zinc-300">
                       {client.contact_person || '-'}
                     </td>
-                    
-                    {/* 🛠️ KURŞUN GEÇİRMEZ İL / İLÇE HÜCRESİ */}
                     <td className="py-4 px-4 font-medium text-zinc-300">
                       {client.city && typeof client.city === 'string' || client.district && typeof client.district === 'string' ? (
                         <span>
@@ -384,7 +596,6 @@ export default function ClientsPage() {
                         <span className="text-zinc-600">—</span>
                       )}
                     </td>
-
                     <td className="py-4 px-4 space-y-0.5 text-zinc-400 font-mono text-[11px]">
                       {client.email && <div className="block">{client.email}</div>}
                       {client.phone && <div className="block text-zinc-500">{client.phone}</div>}
