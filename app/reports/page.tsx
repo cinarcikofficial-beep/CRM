@@ -91,28 +91,41 @@ export default function ReportsPage() {
     return true;
   });
 
-  // Tür Kartlarındaki Sayaçlar (Zaman filtresine göre dinamik hesaplanır)
+  // Tür Kartlarındaki Sayaçlar (Hem kısa hem uzun formatları yakalamak için .includes kullanıldı)
   const stats = timeFilteredActivities.reduce(
     (acc, act) => {
       acc.total += 1;
-      if (act.type === 'Telefon') acc.telefon += 1;
-      else if (act.type === 'Mail' || act.type === 'E-posta') acc.mail += 1;
-      else if (act.type === 'Toplantı') acc.toplanti += 1;
+      const currentType = act.type || '';
+      
+      if (currentType.includes('Telefon')) acc.telefon += 1;
+      else if (currentType.includes('Mail') || currentType.includes('E-posta') || currentType.includes('E-Posta')) acc.mail += 1;
+      else if (currentType.includes('Toplantı')) acc.toplanti += 1;
+      else if (currentType.includes('Teklif')) acc.teklif += 1;
       else acc.sms += 1;
+      
       return acc;
     },
-    { total: 0, telefon: 0, mail: 0, toplanti: 0, sms: 0 }
+    { total: 0, telefon: 0, mail: 0, toplanti: 0, teklif: 0, sms: 0 }
   );
 
   // 2. Kademe: Kart Tıklamasına Göre (Tür) Filtreleme Mantığı
   const finalFilteredActivities = timeFilteredActivities.filter((act) => {
     if (!selectedType) return true;
+    const currentType = act.type || '';
     
-    // Veritabanındaki 'Mail' veya 'E-posta' eşleşmelerini esnek yakalamak için
-    if (selectedType === 'Mail') {
-      return act.type === 'Mail' || act.type === 'E-posta';
+    if (selectedType === 'Telefon') return currentType.includes('Telefon');
+    if (selectedType === 'Mail') return currentType.includes('Mail') || currentType.includes('E-posta') || currentType.includes('E-Posta');
+    if (selectedType === 'Toplantı') return currentType.includes('Toplantı');
+    if (selectedType === 'Teklif') return currentType.includes('Teklif');
+    if (selectedType === 'SMS') {
+      return !currentType.includes('Telefon') && 
+             !currentType.includes('Mail') && 
+             !currentType.includes('E-posta') && 
+             !currentType.includes('E-Posta') && 
+             !currentType.includes('Toplantı') && 
+             !currentType.includes('Teklif');
     }
-    return act.type === selectedType;
+    return currentType === selectedType;
   });
 
   const formatDateTime = (dateStr: string) => {
@@ -128,27 +141,28 @@ export default function ReportsPage() {
     return 'Genel Performans Raporu (Tüm Zamanlar)';
   };
 
-  // Kart tıklandığında filtreyi açıp kapatan fonksiyon
   const toggleTypeFilter = (type: string) => {
     if (selectedType === type) {
-      setSelectedType(null); // Zaten seçiliyse filtreyi kaldır
+      setSelectedType(null); 
     } else {
-      setSelectedType(type); // Değilse o türe odaklan
+      setSelectedType(type); 
     }
   };
 
   const handleSendEmail = () => {
+    const displayType = selectedType === 'Teklif' ? 'Teklif Atma' : selectedType || 'Tümü';
     const subject = encodeURIComponent(`CRM Aktivite Raporu - ${getPeriodText()}`);
     let bodyText = `CRM AKTIVITE RAPORU\n\n`;
     bodyText += `Rapor Tipi: ${getPeriodText()}\n`;
     if (filterRange === 'custom') bodyText += `Aralık: ${startDate || 'Başlangıç yok'} / ${endDate || 'Bitiş yok'}\n`;
-    bodyText += `Filtrelenen Tür: ${selectedType || 'Tümü'}\n\n`;
+    bodyText += `Filtrelenen Tür: ${displayType}\n\n`;
     
     bodyText += `--- ÖZET İSTATİSTİKLER ---\n`;
     bodyText += `Toplam Aktivite: ${stats.total}\n`;
     bodyText += `📞 Telefon: ${stats.telefon}\n`;
     bodyText += `✉️ E-posta: ${stats.mail}\n`;
     bodyText += `🤝 Toplantı: ${stats.toplanti}\n`;
+    bodyText += `📄 Teklif Atma: ${stats.teklif}\n`;
     bodyText += `💬 SMS / WP: ${stats.sms}\n\n`;
     
     bodyText += `--- İŞLEM KRONOLOJİSİ ---\n`;
@@ -168,26 +182,26 @@ export default function ReportsPage() {
           <div>
             <h1 className="text-xl font-black tracking-tight print:text-black">CRM Aktivite Raporu</h1>
             <p className="text-xs text-zinc-500 print:text-zinc-600 font-medium mt-0.5">
-              {getPeriodText()} {selectedType ? `(Sadece ${selectedType} aktiviteleri gösteriliyor)` : ''}
+              {getPeriodText()} {selectedType ? `(Sadece ${selectedType === 'Teklif' ? 'Teklif Atma' : selectedType} aktiviteleri gösteriliyor)` : ''}
             </p>
           </div>
           
           <div className="flex items-center gap-2 print:hidden self-start md:self-center">
             <button
               onClick={handleSendEmail}
-              className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-lg transition-colors shadow-md"
+              className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-lg transition-colors shadow-md cursor-pointer"
             >
               ✉️ Raporu E-Posta Gönder
             </button>
             <button
               onClick={() => window.print()}
-              className="text-xs bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-lg text-white font-bold hover:bg-zinc-800 transition-colors shadow-md"
+              className="text-xs bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-lg text-white font-bold hover:bg-zinc-800 transition-colors shadow-md cursor-pointer"
             >
               🖨️ Yazdır / PDF
             </button>
             <button 
               onClick={() => router.push('/clients')}
-              className="text-xs bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-lg text-zinc-400 hover:text-white transition-colors shadow-md"
+              className="text-xs bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-lg text-zinc-400 hover:text-white transition-colors shadow-md cursor-pointer"
             >
               ← Müşteri Yönetimi
             </button>
@@ -204,7 +218,7 @@ export default function ReportsPage() {
                   setFilterRange(range);
                   if (range !== 'custom') { setStartDate(''); setEndDate(''); }
                 }}
-                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   filterRange === range ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-white bg-zinc-900/50 border border-zinc-800'
                 }`}
               >
@@ -217,26 +231,25 @@ export default function ReportsPage() {
             ))}
           </div>
 
-          {/* Özel Tarih Giriş Alanları (Sadece Özel Tarih Seçildiğinde Parlar/Aktif Olur) */}
           <div className={`flex items-center gap-2 transition-opacity ${filterRange === 'custom' ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
             <input
               type="date"
               value={startDate}
               onChange={(e) => { setStartDate(e.target.value); setFilterRange('custom'); }}
-              className="bg-zinc-900 border border-zinc-800 text-xs px-3 py-1.5 rounded-lg text-white focus:outline-none focus:border-indigo-500"
+              className="bg-zinc-900 border border-zinc-800 text-xs px-3 py-1.5 rounded-lg text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
             />
             <span className="text-zinc-600 text-xs">ve</span>
             <input
               type="date"
               value={endDate}
               onChange={(e) => { setEndDate(e.target.value); setFilterRange('custom'); }}
-              className="bg-zinc-900 border border-zinc-800 text-xs px-3 py-1.5 rounded-lg text-white focus:outline-none focus:border-indigo-500"
+              className="bg-zinc-900 border border-zinc-800 text-xs px-3 py-1.5 rounded-lg text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
             />
           </div>
         </div>
 
         {/* TIKLANABİLİR ÖZET İSTATİSTİK KARTLARI */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 print:grid-cols-5 print:gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 print:grid-cols-6 print:gap-2">
           {/* Hepsi / Toplam Kartı */}
           <div 
             onClick={() => setSelectedType(null)}
@@ -289,6 +302,19 @@ export default function ReportsPage() {
             <span className="text-2xl font-black text-amber-400 print:text-lg">{stats.toplanti}</span>
           </div>
 
+          {/* Teklif Atma Kartı */}
+          <div 
+            onClick={() => toggleTypeFilter('Teklif')}
+            className={`p-4 rounded-xl shadow-md cursor-pointer transition-all border print:p-3 ${
+              selectedType === 'Teklif' 
+                ? 'bg-zinc-900/50 border-indigo-500 shadow-indigo-500/10' 
+                : 'bg-zinc-950 border-zinc-800 hover:border-zinc-700'
+            }`}
+          >
+            <span className="text-[10px] text-zinc-500 uppercase font-black block">📄 Teklif Atma</span>
+            <span className="text-2xl font-black text-sky-400 print:text-lg">{stats.teklif}</span>
+          </div>
+
           {/* SMS / WP Kartı */}
           <div 
             onClick={() => toggleTypeFilter('SMS')}
@@ -312,7 +338,7 @@ export default function ReportsPage() {
             {selectedType && (
               <button 
                 onClick={() => setSelectedType(null)} 
-                className="text-[11px] text-indigo-400 hover:underline print:hidden"
+                className="text-[11px] text-indigo-400 hover:underline print:hidden cursor-pointer"
               >
                 Tür Filtresini Temizle (Tümünü Göster)
               </button>
@@ -335,7 +361,10 @@ export default function ReportsPage() {
                   <div className="flex justify-between items-center border-b border-zinc-900 pb-2 print:border-zinc-200">
                     <div className="flex items-center gap-3">
                       <span className="text-xs font-bold px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-300 print:bg-zinc-100 print:border-zinc-300 print:text-black">
-                        {act.type === 'Telefon' ? '📞 Telefon' : act.type === 'Mail' || act.type === 'E-posta' ? '✉️ Mail' : act.type === 'Toplantı' ? '🤝 Toplantı' : '💬 SMS'}
+                        {act.type?.includes('Telefon') ? '📞 Telefon' : 
+                         act.type?.includes('Mail') || act.type?.includes('E-posta') || act.type?.includes('E-Posta') ? '✉️ Mail' : 
+                         act.type?.includes('Toplantı') ? '🤝 Toplantı' : 
+                         act.type?.includes('Teklif') ? '📄 Teklif' : '💬 SMS'}
                       </span>
                       <span className="text-xs font-black text-indigo-400 print:text-black">
                         {act.clients?.company_name || 'Bilinmeyen Müşteri'}

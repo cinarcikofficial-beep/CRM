@@ -1,44 +1,49 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
   try {
-    const { email, password } = await request.json();
+    const cookieStore = await cookies() // Next.js 15+ için await ekledik
+    const { email, password } = await request.json()
 
-    // Giriş kapısında da @verytech.com.tr uzantı kontrolü
-    if (!email || !email.trim().endsWith('@verytech.com.tr')) {
-      return NextResponse.json(
-        { error: 'Yetkisiz alan adı. Portala yalnızca @verytech.com.tr personeli erişebilir.' },
-        { status: 403 }
-      );
-    }
+    // 1. ADIM: Boş bir Next.js response nesnesi oluşturuyoruz
+    const response = NextResponse.json({ success: true })
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    // 2. ADIM: Çerez yazma yetkisi olan Supabase istemcisini kuruyoruz
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll(cookiesToSet) {
+            // Giriş başarılı olursa çerezleri hem cookieStore'a hem de response'a basar
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set({ name, value, ...options })
+            })
+          },
+        },
+      }
+    )
 
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return NextResponse.json(
-        { error: 'Sunucu hatası: Supabase anahtarları (.env.local) bulunamadı.' },
-        { status: 500 }
-      );
-    }
-
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { persistSession: false }
-    });
-
-    // Kullanıcının şifresini kontrol et
-    const { data, error } = await supabaseAdmin.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
+    // 3. ADIM: Giriş işlemini tetikliyoruz
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
       password,
-    });
+    })
 
     if (error) {
-      return NextResponse.json({ error: 'E-posta adresi veya şifre hatalı.' }, { status: 400 });
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    return NextResponse.json({ success: true, session: data.session });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    // 🔐 EN KRİTİK NOKTA: Girişle birlikte oluşan yeni çerezleri response nesnesine de ekliyoruz
+    // Böylece tarayıcı bu çerezleri hemen hafızasına kaydeder.
+    return response
+
+  } catch (err) {
+    return NextResponse.json({ error: 'Sunucu hatası oluştu' }, { status: 500 })
   }
 }

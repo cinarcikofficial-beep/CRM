@@ -9,12 +9,14 @@ interface ClientData {
   id: string;
   company_name: string;
   contact_person: string | null;
+  position: string | null;
   email: string | null;
   phone: string | null;
   status: string | null;
   city: any;       
   district: any;   
   created_at: string;
+  updated_by: string | null;
 }
 
 interface ReminderData {
@@ -33,12 +35,15 @@ export default function ClientsPage() {
   const router = useRouter();
   const supabase = createClient();
 
+  // Aktif Giriş Yapan Kullanıcı Bilgisi
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
+
   // Liste ve Arama State'leri
   const [clients, setClients] = useState<ClientData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // 🔔 Hatırlatmak State'leri
+  // Hatırlatma State'leri
   const [reminders, setReminders] = useState<ReminderData[]>([]);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [postponeReminderId, setPostponeReminderId] = useState<string | null>(null);
@@ -47,6 +52,7 @@ export default function ClientsPage() {
   // Form State'leri
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newContactPerson, setNewContactPerson] = useState('');
+  const [newPosition, setNewPosition] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newCity, setNewCity] = useState('');          
@@ -59,6 +65,7 @@ export default function ClientsPage() {
   const [editingClient, setEditingClient] = useState<ClientData | null>(null);
   const [editCompanyName, setEditCompanyName] = useState('');
   const [editContactPerson, setEditContactPerson] = useState('');
+  const [editPosition, setEditPosition] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editCity, setEditCity] = useState('');        
@@ -112,6 +119,12 @@ export default function ClientsPage() {
   useEffect(() => {
     fetchClients();
     fetchReminders();
+
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user) {
+        setCurrentUser(data.user.email || data.user.id);
+      }
+    });
   }, []);
 
   const handleCompleteReminder = async (id: string) => {
@@ -144,7 +157,6 @@ export default function ClientsPage() {
       setPostponeReminderId(null);
       setCustomPostponeDate('');
       fetchReminders();
-      alert('Hatırlatma başarıyla güncellendi.');
     } catch (error: any) {
       alert('Erteleme başarısız: ' + error.message);
     }
@@ -162,11 +174,13 @@ export default function ClientsPage() {
           {
             company_name: newCompanyName.trim(),
             contact_person: newContactPerson.trim() || null,
+            position: newPosition.trim() || null,
             email: newEmail.trim() || null,
             phone: newPhone.trim() || null,
             city: newCity.trim() || null,            
             district: newDistrict.trim() || null,    
             status: newStatus,
+            updated_by: currentUser,
           },
         ])
         .select();
@@ -177,6 +191,7 @@ export default function ClientsPage() {
         setClients((prev) => [data[0], ...prev]);
         setNewCompanyName('');
         setNewContactPerson('');
+        setNewPosition('');
         setNewEmail('');
         setNewPhone('');
         setNewCity('');
@@ -207,6 +222,7 @@ export default function ClientsPage() {
     setEditingClient(client);
     setEditCompanyName(client.company_name || '');
     setEditContactPerson(client.contact_person || '');
+    setEditPosition(client.position || '');
     setEditEmail(client.email || '');
     setEditPhone(client.phone || '');
     setEditCity(typeof client.city === 'string' ? client.city : '');                
@@ -226,11 +242,13 @@ export default function ClientsPage() {
         .update({
           company_name: editCompanyName.trim(),
           contact_person: editContactPerson.trim() || null,
+          position: editPosition.trim() || null,
           email: editEmail.trim() || null,
           phone: editPhone.trim() || null,
           city: editCity.trim() || null,            
           district: editDistrict.trim() || null,    
           status: editStatus,
+          updated_by: currentUser,
         })
         .eq('id', editingClient.id);
 
@@ -243,11 +261,13 @@ export default function ClientsPage() {
                 ...c, 
                 company_name: editCompanyName, 
                 contact_person: editContactPerson, 
+                position: editPosition, 
                 email: editEmail, 
                 phone: editPhone, 
                 city: editCity, 
                 district: editDistrict, 
-                status: editStatus 
+                status: editStatus,
+                updated_by: currentUser
               }
             : c
         )
@@ -266,9 +286,20 @@ export default function ClientsPage() {
     return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   };
 
-  // 🛠️ BUGÜNÜN VE GELECEĞİN HATIRLATMALARINI AYIRMA MANTIĞI
+  // E-posta adresinden sadece saf ismi çeken fonksiyon
+  const formatUpdatedBy = (emailOrId: string | null) => {
+    if (!emailOrId) return 'Sistem / Belirsiz';
+    if (emailOrId.includes('@')) {
+      const handle = emailOrId.split('@')[0];
+      const rawName = handle.split('.')[0];
+      return rawName.charAt(0).toUpperCase() + rawName.slice(1);
+    }
+    const rawName = emailOrId.split('.')[0];
+    return rawName.charAt(0).toUpperCase() + rawName.slice(1);
+  };
+
   const todayEnd = new Date();
-  todayEnd.setHours(23, 59, 59, 999); // Bugünün son saniyesi
+  todayEnd.setHours(23, 59, 59, 999);
 
   const todaysReminders = reminders.filter(r => new Date(r.next_followup_date) <= todayEnd);
   const futureReminders = reminders.filter(r => new Date(r.next_followup_date) > todayEnd);
@@ -277,10 +308,12 @@ export default function ClientsPage() {
     const searchLower = searchQuery.toLowerCase();
     const cityStr = client.city && typeof client.city === 'string' ? client.city.toLowerCase() : '';
     const districtStr = client.district && typeof client.district === 'string' ? client.district.toLowerCase() : '';
+    const positionStr = client.position && typeof client.position === 'string' ? client.position.toLowerCase() : '';
     
     return (
       client.company_name?.toLowerCase().includes(searchLower) ||
       client.contact_person?.toLowerCase().includes(searchLower) ||
+      positionStr.includes(searchLower) || 
       client.status?.toLowerCase().includes(searchLower) ||
       cityStr.includes(searchLower) ||        
       districtStr.includes(searchLower)       
@@ -309,14 +342,11 @@ export default function ClientsPage() {
             />
           </div>
 
-          {/* EN SAĞ ALAN: ZİL VE RAPORLAMA BUTONU YAN YANA */}
           <div className="flex justify-center md:justify-end items-center gap-3 relative">
-            
-            {/* 🔔 ZİL BİLDİRİM BUTONU */}
             <div className="relative">
               <button 
                 onClick={() => setIsNotificationOpen(!isNotificationOpen)}
-                className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 p-2 rounded-lg transition-all text-lg relative flex items-center justify-center h-[38px] w-[38px]"
+                className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 p-2 rounded-lg transition-all text-lg relative flex items-center justify-center h-[38px] w-[38px] cursor-pointer"
               >
                 🔔
                 {reminders.length > 0 && (
@@ -326,12 +356,11 @@ export default function ClientsPage() {
                 )}
               </button>
 
-              {/* 🔔 BİLDİRİM PANELİ */}
               {isNotificationOpen && (
                 <div className="absolute top-12 right-0 bg-zinc-950 border border-zinc-800 w-80 md:w-96 rounded-xl shadow-2xl overflow-hidden p-4 space-y-4 z-50 max-h-[500px] overflow-y-auto">
                   <div className="flex items-center justify-between border-b border-zinc-900 pb-2">
                     <span className="text-xs font-black tracking-wide uppercase text-zinc-400">Hatırlatma Paneli ({reminders.length})</span>
-                    <button onClick={() => { setIsNotificationOpen(false); setPostponeReminderId(null); }} className="text-zinc-500 hover:text-white text-xs">✕</button>
+                    <button onClick={() => { setIsNotificationOpen(false); setPostponeReminderId(null); }} className="text-zinc-500 hover:text-white text-xs cursor-pointer">✕</button>
                   </div>
 
                   {reminders.length === 0 ? (
@@ -339,7 +368,7 @@ export default function ClientsPage() {
                   ) : (
                     <div className="space-y-4">
                       
-                      {/* 🛠️ 1. KISIM: BUGÜNÜN HATIRLATMALARI */}
+                      {/* BUGÜNÜN HATIRLATMALARI */}
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <span className="inline-block h-2 w-2 rounded-full bg-red-500 animate-ping"></span>
@@ -370,17 +399,17 @@ export default function ClientsPage() {
                                       type="datetime-local" 
                                       value={customPostponeDate}
                                       onChange={(e) => setCustomPostponeDate(e.target.value)}
-                                      className="w-full bg-black border border-zinc-800 text-[11px] p-1.5 rounded text-white focus:outline-none focus:border-indigo-500"
+                                      className="w-full bg-black border border-zinc-800 text-[11px] p-1.5 rounded text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
                                     />
                                     <div className="flex justify-end gap-1.5">
-                                      <button onClick={() => setPostponeReminderId(null)} className="text-[10px] px-2 py-1 rounded bg-zinc-800 text-zinc-400 font-bold">İptal</button>
-                                      <button onClick={() => handleCustomPostpone(item.id)} className="text-[10px] px-2 py-1 rounded bg-indigo-600 text-white font-black">Kaydet</button>
+                                      <button onClick={() => setPostponeReminderId(null)} className="text-[10px] px-2 py-1 rounded bg-zinc-800 text-zinc-400 font-bold cursor-pointer">İptal</button>
+                                      <button onClick={() => handleCustomPostpone(item.id)} className="text-[10px] px-2 py-1 rounded bg-indigo-600 text-white font-black cursor-pointer">Kaydet</button>
                                     </div>
                                   </div>
                                 ) : (
                                   <div className="flex items-center justify-end gap-2 pt-0.5">
-                                    <button onClick={() => setPostponeReminderId(item.id)} className="bg-zinc-900 hover:bg-zinc-800 text-[10px] font-bold text-zinc-400 px-2 py-1 rounded border border-zinc-800 transition-colors">⏳ Ertele</button>
-                                    <button onClick={() => handleCompleteReminder(item.id)} className="bg-emerald-950/60 hover:bg-emerald-900 text-[10px] font-black text-emerald-400 px-2 py-1 rounded border border-emerald-900/60 transition-colors">✓ Tamamlandı</button>
+                                    <button onClick={() => setPostponeReminderId(item.id)} className="bg-zinc-900 hover:bg-zinc-800 text-[10px] font-bold text-zinc-400 px-2 py-1 rounded border border-zinc-800 transition-colors cursor-pointer">⏳ Ertele</button>
+                                    <button onClick={() => handleCompleteReminder(item.id)} className="bg-emerald-950/60 hover:bg-emerald-900 text-[10px] font-black text-emerald-400 px-2 py-1 rounded border border-emerald-900/60 transition-colors cursor-pointer">✓ Tamamlandı</button>
                                   </div>
                                 )}
                               </div>
@@ -389,7 +418,7 @@ export default function ClientsPage() {
                         )}
                       </div>
 
-                      {/* 🛠️ 2. KISIM: GELECEK HATIRLATMALAR */}
+                      {/* GELECEK HATIRLATMALAR */}
                       <div className="space-y-2 pt-2 border-t border-zinc-900">
                         <h4 className="text-[11px] font-black tracking-wider text-zinc-500 uppercase">Gelecek Hatırlatmalar ({futureReminders.length})</h4>
                         {futureReminders.length === 0 ? (
@@ -417,17 +446,17 @@ export default function ClientsPage() {
                                       type="datetime-local" 
                                       value={customPostponeDate}
                                       onChange={(e) => setCustomPostponeDate(e.target.value)}
-                                      className="w-full bg-black border border-zinc-800 text-[11px] p-1.5 rounded text-white focus:outline-none focus:border-indigo-500"
+                                      className="w-full bg-black border border-zinc-800 text-[11px] p-1.5 rounded text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
                                     />
                                     <div className="flex justify-end gap-1.5">
-                                      <button onClick={() => setPostponeReminderId(null)} className="text-[10px] px-2 py-1 rounded bg-zinc-800 text-zinc-400 font-bold">İptal</button>
-                                      <button onClick={() => handleCustomPostpone(item.id)} className="text-[10px] px-2 py-1 rounded bg-indigo-600 text-white font-black">Kaydet</button>
+                                      <button onClick={() => setPostponeReminderId(null)} className="text-[10px] px-2 py-1 rounded bg-zinc-800 text-zinc-400 font-bold cursor-pointer">İptal</button>
+                                      <button onClick={() => handleCustomPostpone(item.id)} className="text-[10px] px-2 py-1 rounded bg-indigo-600 text-white font-black cursor-pointer">Kaydet</button>
                                     </div>
                                   </div>
                                 ) : (
                                   <div className="flex items-center justify-end gap-2 pt-0.5">
-                                    <button onClick={() => setPostponeReminderId(item.id)} className="bg-zinc-900 hover:bg-zinc-800 text-[10px] font-bold text-zinc-400 px-2 py-1 rounded border border-zinc-800 transition-colors">⏳ Ertele</button>
-                                    <button onClick={() => handleCompleteReminder(item.id)} className="bg-emerald-950/60 hover:bg-emerald-900 text-[10px] font-black text-emerald-400 px-2 py-1 rounded border border-emerald-900/60 transition-colors">✓ Tamamlandı</button>
+                                    <button onClick={() => setPostponeReminderId(item.id)} className="bg-zinc-900 hover:bg-zinc-800 text-[10px] font-bold text-zinc-400 px-2 py-1 rounded border border-zinc-800 transition-colors cursor-pointer">⏳ Ertele</button>
+                                    <button onClick={() => handleCompleteReminder(item.id)} className="bg-emerald-950/60 hover:bg-emerald-900 text-[10px] font-black text-emerald-400 px-2 py-1 rounded border border-emerald-900/60 transition-colors cursor-pointer">✓ Tamamlandı</button>
                                   </div>
                                 )}
                               </div>
@@ -444,18 +473,18 @@ export default function ClientsPage() {
 
             <button 
               onClick={() => router.push('/reports')}
-              className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-indigo-400 hover:text-indigo-300 font-black text-xs px-4 py-2 rounded-lg transition-all shadow-md flex items-center gap-2 h-[38px]"
+              className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-indigo-400 hover:text-indigo-300 font-black text-xs px-4 py-2 rounded-lg transition-all shadow-md flex items-center gap-2 h-[38px] cursor-pointer"
             >
               📊 Raporlama Sayfasına Git →
             </button>
           </div>
         </div>
 
-        {/* YENİ MÜŞTERİ EKLEME FORMU */}
+        {/* YENİ MÜŞTERI EKLEME FORMU */}
         <div className="bg-zinc-950 border border-zinc-900 rounded-xl p-5 shadow-xl">
           <h2 className="text-sm font-black uppercase tracking-wider text-zinc-400 mb-4">Yeni Müşteri Ekle</h2>
-          <form onSubmit={handleAddClient} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 items-end">
-            <div className="space-y-1 lg:col-span-1">
+          <form onSubmit={handleAddClient} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 items-end">
+            <div className="space-y-1">
               <label className="text-[11px] text-zinc-500 font-bold uppercase">Firma Adı *</label>
               <input
                 type="text"
@@ -472,6 +501,16 @@ export default function ClientsPage() {
                 placeholder="Yetkili Kişi"
                 value={newContactPerson}
                 onChange={(e) => setNewContactPerson(e.target.value)}
+                className="w-full bg-zinc-900 border border-zinc-800 text-xs px-3 py-2 rounded-lg text-white focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[11px] text-zinc-500 font-bold uppercase">Pozisyon</label>
+              <input
+                type="text"
+                placeholder="Örn: Müdür / Satın Alma"
+                value={newPosition}
+                onChange={(e) => setNewPosition(e.target.value)}
                 className="w-full bg-zinc-900 border border-zinc-800 text-xs px-3 py-2 rounded-lg text-white focus:outline-none focus:border-indigo-500"
               />
             </div>
@@ -530,7 +569,7 @@ export default function ClientsPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-800 text-white font-black text-xs px-4 py-2 rounded-lg transition-colors shadow-md h-[38px] w-full"
+              className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-800 text-white font-black text-xs px-4 py-2 rounded-lg transition-colors shadow-md h-[38px] w-full lg:col-span-2 cursor-pointer"
             >
               {isSubmitting ? '...' : '+ Oluştur'}
             </button>
@@ -541,14 +580,14 @@ export default function ClientsPage() {
         <div>
           <input
             type="text"
-            placeholder="Müşteri, yetkili, durum veya şehir/ilçe ile filtreleyin..."
+            placeholder="Müşteri, yetkili, pozisyon, durum veya şehir/ilçe ile filtreleyin..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full max-w-md bg-zinc-900/50 border border-zinc-800 text-xs px-4 py-2.5 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 transition-colors"
           />
         </div>
 
-        {/* MÜŞTERI TABLOSU */}
+        {/* MÜŞTERİ TABLOSU */}
         <div className="bg-zinc-950 border border-zinc-900 rounded-xl overflow-hidden shadow-xl">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -556,21 +595,23 @@ export default function ClientsPage() {
                 <th className="py-3.5 px-4 w-12 text-center">#</th>
                 <th className="py-3.5 px-4">Müşteri / Firma Adı</th>
                 <th className="py-3.5 px-4">Yetkili Kişi</th>
+                <th className="py-3.5 px-4">Pozisyon</th>
                 <th className="py-3.5 px-4">Bölge (İl / İlçe)</th> 
                 <th className="py-3.5 px-4">İletişim Bilgileri</th>
                 <th className="py-3.5 px-4">Kayıt Tarihi</th>
                 <th className="py-3.5 px-4">Durum</th>
+                <th className="py-3.5 px-4">Değişikliği Yapan</th>
                 <th className="py-3.5 px-4 text-right">İşlemler</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-900 text-xs">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-zinc-500 font-medium">Müşteriler yükleniyor...</td>
+                  <td colSpan={10} className="py-8 text-center text-zinc-500 font-medium">Müşteriler yükleniyor...</td>
                 </tr>
               ) : filteredClients.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-zinc-500 font-medium">Kayıtlı veya arama kriterine uygun müşteri bulunamadı.</td>
+                  <td colSpan={10} className="py-8 text-center text-zinc-500 font-medium">Kayıtlı veya arama kriterine uygun müşteri bulunamadı.</td>
                 </tr>
               ) : (
                 filteredClients.map((client, index) => (
@@ -584,8 +625,11 @@ export default function ClientsPage() {
                     <td className="py-4 px-4 font-medium text-zinc-300">
                       {client.contact_person || '-'}
                     </td>
+                    <td className="py-4 px-4 font-medium text-zinc-400">
+                      {client.position ? `💼 ${client.position}` : '-'}
+                    </td>
                     <td className="py-4 px-4 font-medium text-zinc-300">
-                      {client.city && typeof client.city === 'string' || client.district && typeof client.district === 'string' ? (
+                      {(client.city && typeof client.city === 'string') || (client.district && typeof client.district === 'string') ? (
                         <span>
                           {String(client.city || '-')}{' '}
                           <span className="text-zinc-500 text-[11px]">
@@ -613,18 +657,21 @@ export default function ClientsPage() {
                         {client.status || 'Potansiyel'}
                       </span>
                     </td>
+                    <td className="py-4 px-4 font-mono text-[11px] font-bold text-zinc-400">
+                      {formatUpdatedBy(client.updated_by)}
+                    </td>
                     <td className="py-4 px-4 text-right">
                       <div className="flex items-center justify-end gap-3">
                         <button 
                           onClick={() => router.push(`/clients/${client.id}`)}
-                          className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 font-bold px-3 py-1.5 rounded-lg text-[11px] transition-all shadow-sm"
+                          className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 font-bold px-3 py-1.5 rounded-lg text-[11px] transition-all shadow-sm cursor-pointer"
                         >
                           Detay & Notlar →
                         </button>
-                        <button onClick={() => openEditModal(client)} className="text-zinc-500 hover:text-amber-500 p-1 text-sm transition-colors">
+                        <button onClick={() => openEditModal(client)} className="text-zinc-500 hover:text-amber-500 p-1 text-sm transition-colors cursor-pointer">
                           ✏️
                         </button>
-                        <button onClick={() => handleDeleteClient(client.id, client.company_name)} className="text-zinc-500 hover:text-red-500 p-1 text-sm transition-colors">
+                        <button onClick={() => handleDeleteClient(client.id, client.company_name)} className="text-zinc-500 hover:text-red-500 p-1 text-sm transition-colors cursor-pointer">
                           🗑️
                         </button>
                       </div>
@@ -646,16 +693,22 @@ export default function ClientsPage() {
                 <h3 className="text-sm font-black text-white uppercase tracking-wider">{editCompanyName}</h3>
                 <p className="text-[11px] text-zinc-500 font-medium">Müşteri detaylarını düzenleyin</p>
               </div>
-              <button onClick={() => setIsEditModalOpen(false)} className="text-zinc-500 hover:text-white transition-colors">✕</button>
+              <button onClick={() => setIsEditModalOpen(false)} className="text-zinc-500 hover:text-white transition-colors cursor-pointer">✕</button>
             </div>
             <form onSubmit={handleUpdateClient} className="space-y-4 text-xs">
               <div className="space-y-1">
                 <label className="text-[11px] text-zinc-500 font-bold uppercase">Firma / Müşteri Adı *</label>
                 <input type="text" value={editCompanyName} onChange={(e) => setEditCompanyName(e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 px-3 py-2 rounded-lg text-white" />
               </div>
-              <div className="space-y-1">
-                <label className="text-[11px] text-zinc-500 font-bold uppercase">Yetkili Kişi</label>
-                <input type="text" value={editContactPerson} onChange={(e) => setEditContactPerson(e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 px-3 py-2 rounded-lg text-white" />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] text-zinc-500 font-bold uppercase">Yetkili Kişi</label>
+                  <input type="text" value={editContactPerson} onChange={(e) => setEditContactPerson(e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 px-3 py-2 rounded-lg text-white" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] text-zinc-500 font-bold uppercase">Pozisyon</label>
+                  <input type="text" value={editPosition} onChange={(e) => setEditPosition(e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 px-3 py-2 rounded-lg text-white" />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
@@ -679,15 +732,15 @@ export default function ClientsPage() {
               </div>
               <div className="space-y-1">
                 <label className="text-[11px] text-zinc-500 font-bold uppercase">Durum</label>
-                <select value={editStatus} onChange={(e) => setEditStatus(e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 px-3 py-2 rounded-lg text-white">
+                <select value={editStatus} onChange={(e) => setEditStatus(e.target.value)} className="w-full bg-zinc-900 border border-zinc-800 px-3 py-2 rounded-lg text-white cursor-pointer">
                   <option value="Potansiyel">Potansiyel</option>
                   <option value="Aktif Müşteri">Aktif Müşteri</option>
                   <option value="Pasif">Pasif</option>
                 </select>
               </div>
               <div className="flex items-center justify-end gap-2 border-t border-zinc-900 pt-4">
-                <button type="button" onClick={() => setIsEditModalOpen(false)} className="bg-zinc-900 border border-zinc-800 text-zinc-400 px-4 py-2 rounded-lg font-bold">Kapat</button>
-                <button type="submit" disabled={isUpdating} className="bg-indigo-600 text-white font-black px-4 py-2 rounded-lg">{isUpdating ? 'Güncelleniyor...' : 'Değişiklikleri Kaydet'}</button>
+                <button type="button" onClick={() => setIsEditModalOpen(false)} className="bg-zinc-900 border border-zinc-800 text-zinc-400 px-4 py-2 rounded-lg font-bold cursor-pointer">Kapat</button>
+                <button type="submit" disabled={isUpdating} className="bg-indigo-600 text-white font-black px-4 py-2 rounded-lg cursor-pointer">{isUpdating ? 'Güncelleniyor...' : 'Değişiklikleri Kaydet'}</button>
               </div>
             </form>
           </div>

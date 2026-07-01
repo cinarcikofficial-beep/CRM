@@ -23,9 +23,10 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    // 🛠️ suppressHydrationWarning ekleyerek bu terminal uyarısını tamamen kapatıyoruz
     <html lang="tr" suppressHydrationWarning>
-      <body>{children}</body>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        {children}
+      </body>
     </html>
   );
 }
