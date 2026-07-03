@@ -22,6 +22,7 @@ export default function ReportsPage() {
 
   const [activities, setActivities] = useState<ActivityReportData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   
   // Filtreleme State'leri
   const [filterRange, setFilterRange] = useState<'daily' | 'weekly' | 'monthly' | 'custom' | 'all'>('all');
@@ -62,6 +63,31 @@ export default function ReportsPage() {
     fetchReportData();
   }, []);
 
+  // Güvenli Çıkış Yap Fonksiyonu
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+    
+    const confirmLogout = confirm('Oturumu kapatmak istediğinize emin misiniz?');
+    if (!confirmLogout) return;
+
+    setIsLoggingOut(true);
+    try {
+      const res = await fetch('/api/auth/logout', { method: 'POST' });
+      
+      if (res.ok) {
+        router.push('/register');
+        router.refresh();
+      } else {
+        alert('Çıkış yapılırken bir hata oluştu.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Bağlantı hatası oluştu.');
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
   // 1. Kademe: Zaman Aralığı Filtreleme Mantığı
   const timeFilteredActivities = activities.filter((act) => {
     const actDate = new Date(act.activity_date);
@@ -84,14 +110,13 @@ export default function ReportsPage() {
       if (!startDate && !endDate) return true;
       let start = startDate ? new Date(startDate) : new Date('1970-01-01');
       let end = endDate ? new Date(endDate) : new Date();
-      // Bitiş gününü gün sonuna kuruyoruz (23:59:59) ki o günün içindeki kayıtlar kaçmasın
       end.setHours(23, 59, 59, 999);
       return actDate >= start && actDate <= end;
     }
     return true;
   });
 
-  // Tür Kartlarındaki Sayaçlar (Hem kısa hem uzun formatları yakalamak için .includes kullanıldı)
+  // Tür Kartlarındaki Sayaçlar
   const stats = timeFilteredActivities.reduce(
     (acc, act) => {
       acc.total += 1;
@@ -186,24 +211,32 @@ export default function ReportsPage() {
             </p>
           </div>
           
+          {/* BUTONLAR VE SAĞ ÜST KÖŞE SİMETRİSİ */}
           <div className="flex items-center gap-2 print:hidden self-start md:self-center">
             <button
               onClick={handleSendEmail}
-              className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-lg transition-colors shadow-md cursor-pointer"
+              className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-lg transition-colors shadow-md cursor-pointer h-[36px]"
             >
               ✉️ Raporu E-Posta Gönder
             </button>
             <button
               onClick={() => window.print()}
-              className="text-xs bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-lg text-white font-bold hover:bg-zinc-800 transition-colors shadow-md cursor-pointer"
+              className="text-xs bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-lg text-white font-bold hover:bg-zinc-800 transition-colors shadow-md cursor-pointer h-[36px]"
             >
               🖨️ Yazdır / PDF
             </button>
             <button 
               onClick={() => router.push('/clients')}
-              className="text-xs bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-lg text-zinc-400 hover:text-white transition-colors shadow-md cursor-pointer"
+              className="text-xs bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-lg text-zinc-400 hover:text-white transition-colors shadow-md cursor-pointer h-[36px]"
             >
               ← Müşteri Yönetimi
+            </button>
+            <button 
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="text-xs bg-zinc-900 hover:bg-red-950/30 border border-zinc-800 hover:border-red-900/40 text-zinc-400 hover:text-red-400 font-bold px-4 py-2 rounded-lg transition-all shadow-md flex items-center gap-1.5 h-[36px] cursor-pointer disabled:opacity-50"
+            >
+              🚪 {isLoggingOut ? 'Çıkış Yapılıyor...' : 'Çıkış Yap'}
             </button>
           </div>
         </div>
@@ -250,7 +283,6 @@ export default function ReportsPage() {
 
         {/* TIKLANABİLİR ÖZET İSTATİSTİK KARTLARI */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 print:grid-cols-6 print:gap-2">
-          {/* Hepsi / Toplam Kartı */}
           <div 
             onClick={() => setSelectedType(null)}
             className={`p-4 rounded-xl shadow-md cursor-pointer transition-all border print:p-3 ${
@@ -263,7 +295,6 @@ export default function ReportsPage() {
             <span className="text-2xl font-black text-white print:text-lg">{stats.total}</span>
           </div>
 
-          {/* Telefon Kartı */}
           <div 
             onClick={() => toggleTypeFilter('Telefon')}
             className={`p-4 rounded-xl shadow-md cursor-pointer transition-all border print:p-3 ${
@@ -276,7 +307,6 @@ export default function ReportsPage() {
             <span className="text-2xl font-black text-indigo-400 print:text-lg">{stats.telefon}</span>
           </div>
 
-          {/* E-posta Kartı */}
           <div 
             onClick={() => toggleTypeFilter('Mail')}
             className={`p-4 rounded-xl shadow-md cursor-pointer transition-all border print:p-3 ${
@@ -289,7 +319,6 @@ export default function ReportsPage() {
             <span className="text-2xl font-black text-emerald-400 print:text-lg">{stats.mail}</span>
           </div>
 
-          {/* Toplantı Kartı */}
           <div 
             onClick={() => toggleTypeFilter('Toplantı')}
             className={`p-4 rounded-xl shadow-md cursor-pointer transition-all border print:p-3 ${
@@ -302,7 +331,6 @@ export default function ReportsPage() {
             <span className="text-2xl font-black text-amber-400 print:text-lg">{stats.toplanti}</span>
           </div>
 
-          {/* Teklif Atma Kartı */}
           <div 
             onClick={() => toggleTypeFilter('Teklif')}
             className={`p-4 rounded-xl shadow-md cursor-pointer transition-all border print:p-3 ${
@@ -315,7 +343,6 @@ export default function ReportsPage() {
             <span className="text-2xl font-black text-sky-400 print:text-lg">{stats.teklif}</span>
           </div>
 
-          {/* SMS / WP Kartı */}
           <div 
             onClick={() => toggleTypeFilter('SMS')}
             className={`p-4 rounded-xl shadow-md cursor-pointer transition-all border print:p-3 ${

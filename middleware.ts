@@ -5,9 +5,11 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   
   // 1. ADIM: Next.js iç mekanizmalarını, API'leri ve statik dosyaları hemen serbest bırak
+  // 1. ADIM: Next.js iç mekanizmalarını, API'leri, statik dosyaları ve logoları hemen serbest bırak
   if (
     pathname.startsWith('/_next') || 
     pathname.startsWith('/api') ||
+    pathname.startsWith('/logo') || // 👈 logonun bulunduğu klasörü tamamen özgür bırakıyoruz
     request.headers.has('next-action') ||
     pathname.includes('.')
   ) {

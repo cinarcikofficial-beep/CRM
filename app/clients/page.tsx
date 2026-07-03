@@ -73,6 +73,9 @@ export default function ClientsPage() {
   const [editStatus, setEditStatus] = useState('Potansiyel');
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // Çıkış Yükleniyor State'i
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
   const fetchClients = async () => {
     try {
       setLoading(true);
@@ -126,6 +129,30 @@ export default function ClientsPage() {
       }
     });
   }, []);
+
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+    
+    const confirmLogout = confirm('Oturumu kapatmak istediğinize emin misiniz?');
+    if (!confirmLogout) return;
+
+    setIsLoggingOut(true);
+    try {
+      const res = await fetch('/api/auth/logout', { method: 'POST' });
+      
+      if (res.ok) {
+        router.push('/register');
+        router.refresh();
+      } else {
+        alert('Çıkış yapılırken bir hata oluştu.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Bağlantı hatası oluştu.');
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
   const handleCompleteReminder = async (id: string) => {
     try {
@@ -286,7 +313,6 @@ export default function ClientsPage() {
     return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   };
 
-  // E-posta adresinden sadece saf ismi çeken fonksiyon
   const formatUpdatedBy = (emailOrId: string | null) => {
     if (!emailOrId) return 'Sistem / Belirsiz';
     if (emailOrId.includes('@')) {
@@ -471,11 +497,21 @@ export default function ClientsPage() {
               )}
             </div>
 
+            {/* RAPORLAMA SAYFASINA GİT (SOLDA KALDI) */}
             <button 
               onClick={() => router.push('/reports')}
               className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-indigo-400 hover:text-indigo-300 font-black text-xs px-4 py-2 rounded-lg transition-all shadow-md flex items-center gap-2 h-[38px] cursor-pointer"
             >
               📊 Raporlama Sayfasına Git →
+            </button>
+
+            {/* EN SAĞDAKİ ÇIKIŞ YAP BUTONU */}
+            <button 
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="bg-zinc-900 hover:bg-red-950/30 border border-zinc-800 hover:border-red-900/40 text-zinc-400 hover:text-red-400 font-bold text-xs px-3.5 py-2 rounded-lg transition-all shadow-md flex items-center gap-1.5 h-[38px] cursor-pointer disabled:opacity-50"
+            >
+              🚪 {isLoggingOut ? 'Çıkış Yapılıyor...' : 'Çıkış Yap'}
             </button>
           </div>
         </div>
@@ -587,7 +623,7 @@ export default function ClientsPage() {
           />
         </div>
 
-        {/* MÜŞTERİ TABLOSU */}
+        {/* MÜŞTERI TABLOSU */}
         <div className="bg-zinc-950 border border-zinc-900 rounded-xl overflow-hidden shadow-xl">
           <table className="w-full text-left border-collapse">
             <thead>
