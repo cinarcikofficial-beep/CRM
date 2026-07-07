@@ -448,7 +448,7 @@ export default function ReportsPage() {
                     "{act.notes}"
                   </p>
 
-                  {/* KARTIN ALTINA OLUŞTURAN KULLANICI BİLGİSİ DİNAMİK HALE GETİRİLDİ */}
+                  {/* KARTIN ALTINA OLUŞTURAN KULLANICI BİLGİSİ EKLENDİ */}
                   <div className="flex justify-end text-[10px] text-slate-500 pt-1 print:text-zinc-600">
                     <span className="font-black text-slate-400 bg-[#0d1321] border border-slate-800/60 px-2 py-0.5 rounded flex items-center gap-1 print:bg-transparent print:border-none print:text-zinc-700">
                       👤 {formatUpdatedBy(act.updated_by)}
