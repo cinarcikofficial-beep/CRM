@@ -36,7 +36,8 @@ export default function ClientDetailPage() {
   const supabase = createClient();
   const id = params?.id as string;
 
-  const [currentUser, setCurrentUser] = useState<string | null>('Kerim');
+  // DEĞİŞİKLİK: Başlangıçta null atandı, useEffect içinde dinamik doldurulacak.
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [client, setClient] = useState<ClientData | null>(null);
   const [activities, setActivities] = useState<ActivityData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,6 +71,12 @@ export default function ClientDetailPage() {
       
       try {
         setLoading(true);
+
+        // DEĞİŞİKLİK: Giriş yapan aktif kullanıcının bilgisini çekiyoruz
+        const { data: userData } = await supabase.auth.getUser();
+        if (userData?.user) {
+          setCurrentUser(userData.user.email || userData.user.id);
+        }
 
         const { data: clientData, error: clientError } = await supabase
           .from('clients')
@@ -218,6 +225,17 @@ export default function ClientDetailPage() {
     if (!dateStr) return '-';
     const d = new Date(dateStr);
     return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+
+  // E-posta adresini isme dönüştüren küçük bir temizlik fonksiyonu (Örn: barlas.soyad@veri.com -> Barlas)
+  const formatUpdatedBy = (emailOrId: string | null) => {
+    if (!emailOrId) return 'Sistem';
+    if (emailOrId.includes('@')) {
+      const handle = emailOrId.split('@')[0];
+      const rawName = handle.split('.')[0];
+      return rawName.charAt(0).toUpperCase() + rawName.slice(1);
+    }
+    return emailOrId.slice(0, 7);
   };
 
   // Badge'lerin ikon yönetimini raporlama alanlarına göre ayarlayan yardımcı fonksiyon
@@ -375,7 +393,8 @@ export default function ClientDetailPage() {
                         <div className="flex flex-wrap justify-between items-center text-[10px] text-slate-500 pt-2">
                           <div className="flex gap-4">
                             <span>📅 {formatDateTime(activity.activity_date)}</span>
-                            <span className="font-bold text-slate-400">👤 {activity.updated_by || 'Sistem'}</span>
+                            {/* DEĞİŞİKLİK: Ekrandaki isim gösterimi formatUpdatedBy yardımıyla temizlendi */}
+                            <span className="font-bold text-slate-400">👤 {formatUpdatedBy(activity.updated_by)}</span>
                           </div>
                           {activity.next_followup_date && (
                             <span className="text-[10px] font-mono text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded">
