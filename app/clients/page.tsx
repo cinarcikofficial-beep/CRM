@@ -786,17 +786,18 @@ export default function ClientsPage() {
                         )}
                       </td>
                       
-                      {/* 🛠️ YENİLENEN, DAHA OKUNABİLİR İLETİŞİM HÜCRESİ */}
+                      {/* 🛠️ YENİLENEN İLETİŞİM HÜCRESİ (E-POSTA TIKLANABİLİR HALE GETİRİLDİ) */}
                       <td className="py-4 px-4 space-y-1.5 max-w-[220px]">
                         {client.email && (
                           <div className="flex items-center gap-1.5 min-w-0">
                             <span className="text-indigo-400 text-[11px] select-none shrink-0">✉️</span>
-                            <span 
-                              className="text-indigo-300 hover:text-indigo-200 text-[11px] font-medium truncate select-all transition-colors tracking-wide" 
+                            <a
+                              href={`mailto:${client.email}`}
+                              className="text-indigo-300 hover:text-indigo-200 hover:underline text-[11px] font-medium truncate transition-colors tracking-wide" 
                               title={client.email}
                             >
                               {client.email}
-                            </span>
+                            </a>
                           </div>
                         )}
                         {client.phone && (

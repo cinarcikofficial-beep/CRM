@@ -414,7 +414,6 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 border-b border-slate-800/60 pb-4">
             <div>
               <h1 className="text-2xl font-black text-white tracking-wide">{client.company_name}</h1>
-              <p className="text-xs text-slate-500 font-mono mt-1">Sistem ID: {client.id}</p>
             </div>
             <span className={`px-3 py-1 rounded text-xs font-black tracking-wider uppercase border ${
               client.status === 'Aktif Müşteri' 
@@ -446,7 +445,14 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
             </div>
             <div className="space-y-1">
               <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">İletişim Kanalları</span>
-              {client.email && <p className="text-indigo-400 font-medium truncate">✉️ {client.email}</p>}
+              {client.email && (
+                <a
+                  href={`mailto:${client.email}`}
+                  className="text-indigo-400 hover:text-indigo-300 hover:underline font-medium truncate block transition-colors"
+                >
+                  ✉️ {client.email}
+                </a>
+              )}
               {client.phone && <p className="text-slate-300 font-mono">📞 {client.phone}</p>}
               {!client.email && !client.phone && <p className="text-slate-600">-</p>}
             </div>
