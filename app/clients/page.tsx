@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { createClient } from '@/utils/supabase/client';
 import Image from 'next/image';
 
@@ -578,12 +579,12 @@ export default function ClientsPage() {
               )}
             </div>
 
-            {/* RAPORLAMA SAYFASINA GİT */}
+            {/* 📊 RAPORLAR BUTONU */}
             <button 
               onClick={() => router.push('/reports')}
-              className="bg-[#141d30] hover:bg-[#1c263c] border border-slate-700/50 text-indigo-400 hover:text-indigo-300 font-bold text-xs px-4 py-2 rounded-lg transition-all shadow-md flex items-center gap-2 h-[38px] cursor-pointer"
+              className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3.5 py-2.5 rounded-lg transition-all shadow-md cursor-pointer h-[38px] flex items-center gap-1.5 whitespace-nowrap"
             >
-              📊 Raporlama Sayfasına Git →
+              📊 Raporlar
             </button>
 
             {/* EN SAĞDAKİ ÇIKIŞ YAP BUTONU */}
@@ -754,9 +755,18 @@ export default function ClientsPage() {
                       <td className="py-4 px-4 text-center font-bold text-slate-500 group-hover:text-slate-400 transition-colors">
                         {index + 1}
                       </td>
+
+                      {/* 🔗 TIKLANABİLİR MÜŞTERİ / FİRMA ADI */}
                       <td className="py-4 px-4 font-bold text-white tracking-wide max-w-xs truncate">
-                        {client.company_name}
+                        <Link 
+                          href={`/clients/${client.id}`}
+                          title="Müşteri detaylarına ve aktivite notlarına git"
+                          className="hover:text-indigo-400 transition-colors hover:underline cursor-pointer"
+                        >
+                          {client.company_name}
+                        </Link>
                       </td>
+
                       <td className="py-4 px-4 font-medium text-slate-200 whitespace-nowrap">
                         {client.contact_person || '-'}
                       </td>

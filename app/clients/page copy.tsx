@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { createClient } from '@/utils/supabase/client';
 import Image from 'next/image';
 
@@ -34,6 +35,13 @@ interface ReminderData {
 export default function ClientsPage() {
   const router = useRouter();
   const supabase = createClient();
+
+  // Çift Yönlü Kaydırma Çubuğu Senkronizasyon Ref'leri
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const bottomScrollRef = useRef<HTMLDivElement>(null);
+  
+  // Tablonun Dinamik Gerçek Genişlik State'i
+  const [tableWidth, setTableWidth] = useState(1350);
 
   // Aktif Giriş Yapan Kullanıcı Bilgisi
   const [currentUser, setCurrentUser] = useState<string | null>(null);
@@ -82,6 +90,37 @@ export default function ClientsPage() {
     message: string;
     onConfirm: () => void;
   } | null>(null);
+
+  // Kaydırma Senkronizasyon Fonksiyonları
+  const handleTopScroll = () => {
+    if (topScrollRef.current && bottomScrollRef.current) {
+      if (bottomScrollRef.current.scrollLeft !== topScrollRef.current.scrollLeft) {
+        bottomScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+      }
+    }
+  };
+
+  const handleBottomScroll = () => {
+    if (bottomScrollRef.current && topScrollRef.current) {
+      if (topScrollRef.current.scrollLeft !== bottomScrollRef.current.scrollLeft) {
+        topScrollRef.current.scrollLeft = bottomScrollRef.current.scrollLeft;
+      }
+    }
+  };
+
+  // Tablonun Gerçek Genişliğini Dinamik Dinleyen Observer
+  useEffect(() => {
+    if (!bottomScrollRef.current) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (bottomScrollRef.current) {
+        setTableWidth(bottomScrollRef.current.scrollWidth);
+      }
+    });
+
+    resizeObserver.observe(bottomScrollRef.current);
+    return () => resizeObserver.disconnect();
+  }, [clients, loading, searchQuery]);
 
   const fetchClients = async () => {
     try {
@@ -369,7 +408,28 @@ export default function ClientsPage() {
   });
 
   return (
-    <div className="min-h-screen bg-[#0d1321] text-slate-100 p-6 relative font-sans antialiased">
+    <div className="min-h-screen bg-[#0d1321] text-slate-100 p-6 relative font-sans antialiased overflow-x-hidden">
+      
+      {/* DURUM ÇUBUĞUNU MODERN VE KALICI HALE GETİREN CSS ENJEKSİYONU */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .kalici-durum-cubugu::-webkit-scrollbar {
+          height: 10px !important;
+          display: block !important;
+        }
+        .kalici-durum-cubugu::-webkit-scrollbar-track {
+          background: #111827 !important;
+          border-radius: 8px !important;
+        }
+        .kalici-durum-cubugu::-webkit-scrollbar-thumb {
+          background: #4f46e5 !important;
+          border-radius: 8px !important;
+          border: 2px solid #111827 !important;
+        }
+        .kalici-durum-cubugu::-webkit-scrollbar-thumb:hover {
+          background: #6366f1 !important;
+        }
+      `}} />
+
       <div className="max-w-7xl mx-auto space-y-6">
         
         {/* LOGOLU ÜST BAŞLIK */}
@@ -645,109 +705,159 @@ export default function ClientsPage() {
           />
         </div>
 
-        {/* MÜŞTERI TABLOSU */}
+        {/* MÜŞTERI TABLOSU CONTAINER'I */}
         <div className="bg-[#141d30] border border-slate-800/80 rounded-xl overflow-hidden shadow-xl">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-slate-800 bg-slate-900/40 text-[11px] font-black uppercase text-slate-400 tracking-wider">
-                <th className="py-3.5 px-4 w-12 text-center">#</th>
-                <th className="py-3.5 px-4">Müşteri / Firma Adı</th>
-                <th className="py-3.5 px-4">Yetkili Kişi</th>
-                <th className="py-3.5 px-4">Pozisyon</th>
-                <th className="py-3.5 px-4">Bölge (İl / İlçe)</th> 
-                <th className="py-3.5 px-4">İletişim Bilgileri</th>
-                <th className="py-3.5 px-4">Kayıt Tarihi</th>
-                <th className="py-3.5 px-4 text-center">Durum</th>
-                <th className="py-3.5 px-4 text-center">Değişikliği Yapan</th>
-                <th className="py-3.5 px-4 text-right pr-6">İşlemler</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60 text-xs">
-              {loading ? (
-                <tr>
-                  <td colSpan={10} className="py-8 text-center text-slate-500 font-medium">Müşteriler yükleniyor...</td>
+          
+          {/* 🔗 ÜST KAYDIRMA ÇUBUĞU (DİNAMİK GENİŞLİKLİ SENKRONİZE YAPAY ELEMENT) */}
+          <div 
+            ref={topScrollRef}
+            onScroll={handleTopScroll}
+            className="w-full overflow-x-auto block kalici-durum-cubugu border-b border-slate-800/40"
+            style={{ maxWidth: 'calc(100vw - 50px)' }}
+          >
+            <div style={{ width: `${tableWidth}px`, height: '1px' }}></div>
+          </div>
+
+          {/* 🔗 ALT KAYDIRMA ÇUBUĞU AND TABLO ALANI */}
+          <div 
+            ref={bottomScrollRef}
+            onScroll={handleBottomScroll}
+            className="w-full overflow-x-auto block kalici-durum-cubugu pb-2"
+            style={{ maxWidth: 'calc(100vw - 50px)' }}
+          >
+            <table className="w-full min-w-[1350px] text-left border-collapse table-auto">
+              <thead>
+                <tr className="border-b border-slate-800 bg-slate-900/40 text-[11px] font-black uppercase text-slate-400 tracking-wider">
+                  <th className="py-3.5 px-4 w-12 text-center">#</th>
+                  <th className="py-3.5 px-4">Müşteri / Firma Adı</th>
+                  <th className="py-3.5 px-4">Yetkili Kişi</th>
+                  <th className="py-3.5 px-4">Pozisyon</th>
+                  <th className="py-3.5 px-4">Bölge (İl / İlçe)</th> 
+                  <th className="py-3.5 px-4">İletişim Bilgileri</th>
+                  <th className="py-3.5 px-4">Kayıt Tarihi</th>
+                  <th className="py-3.5 px-4 text-center">Durum</th>
+                  <th className="py-3.5 px-4 text-center">Değişikliği Yapan</th>
+                  <th className="py-3.5 px-4 text-right pr-6">İşlemler</th>
                 </tr>
-              ) : filteredClients.length === 0 ? (
-                <tr>
-                  <td colSpan={10} className="py-8 text-center text-slate-500 font-medium">Kayıtlı veya arama kriterine uygun müşteri bulunamadı.</td>
-                </tr>
-              ) : (
-                filteredClients.map((client, index) => (
-                  <tr key={client.id} className="hover:bg-slate-900/30 transition-colors group">
-                    <td className="py-4 px-4 text-center font-bold text-slate-500 group-hover:text-slate-400 transition-colors">
-                      {index + 1}
-                    </td>
-                    <td className="py-4 px-4 font-bold text-white tracking-wide max-w-xs">
-                      {client.company_name}
-                    </td>
-                    <td className="py-4 px-4 font-medium text-slate-200">
-                      {client.contact_person || '-'}
-                    </td>
-                    <td className="py-4 px-4 font-medium text-slate-300">
-                      {client.position ? `💼 ${client.position}` : '-'}
-                    </td>
-                    <td className="py-4 px-4 font-medium text-slate-300">
-                      {client.city || client.district ? (
-                        <span>
-                          {client.city || '-'}{' '}
-                          <span className="text-zinc-500 text-[11px]">
-                            ({client.district || '-'})
-                          </span>
-                        </span>
-                      ) : (
-                        <span className="text-zinc-600">—</span>
-                      )}
-                    </td>
-                    <td className="py-4 px-4 space-y-0.5 text-slate-300 font-mono text-[11px]">
-                      {client.email && <div className="block text-indigo-300">{client.email}</div>}
-                      {client.phone && <div className="block text-slate-500">{client.phone}</div>}
-                      {!client.email && !client.phone && <span>-</span>}
-                    </td>
-                    <td className="py-4 px-4 text-slate-400 font-mono text-[11px]">
-                      {formatDateTime(client.created_at)}
-                    </td>
-                    <td className="py-4 px-4 text-center">
-                      <span className={`inline-block px-2.5 py-1 rounded text-[10px] font-black tracking-wide uppercase border ${
-                        client.status === 'Aktif Müşteri' 
-                          ? 'bg-emerald-950/40 text-emerald-400 border-emerald-900/50' 
-                          : client.status === 'Pasif' 
-                          ? 'bg-zinc-900 text-zinc-500 border-zinc-800' 
-                          : 'bg-indigo-950/40 text-indigo-400 border-indigo-900/50'
-                      }`}>
-                        {client.status || 'Potansiyel'}
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 text-center font-bold text-slate-300">
-                      {formatUpdatedBy(client.updated_by)}
-                    </td>
-                    <td className="py-4 px-4 text-right pr-6 space-x-1.5 whitespace-nowrap">
-                      <button 
-                        title='Detay'
-                        onClick={() => router.push(`/clients/${client.id}`)}
-                        className="bg-[#1c263c] hover:bg-[#253250] text-slate-200 hover:text-white font-bold text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-700/60 transition-colors cursor-pointer"
-                      >
-                        🔍 
-                      </button>
-                      <button 
-                        title='Düzenle'
-                        onClick={() => openEditModal(client)}
-                        className="bg-[#1c263c] hover:bg-[#253250] text-amber-400 hover:text-amber-300 font-bold text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-700/60 transition-colors cursor-pointer"
-                      >
-                        ✏️ 
-                      </button>
-                      <button 
-                        title='Sil'
-                        onClick={() => handleDeleteClient(client.id, client.company_name)}
-                        className="bg-red-950/40 hover:bg-red-900/60 border border-red-900/50 text-red-400 hover:text-red-300 font-bold text-[11px] px-2.5 py-1.5 rounded-lg transition-all cursor-pointer shadow-sm"
-                      >
-                        🗑️ 
-                      </button>
-                    </td>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 text-xs">
+                {loading ? (
+                  <tr>
+                    <td colSpan={10} className="py-8 text-center text-slate-500 font-medium">Müşteriler yükleniyor...</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : filteredClients.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="py-8 text-center text-slate-500 font-medium">Kayıtlı veya arama kriterine uygun müşteri bulunamadı.</td>
+                  </tr>
+                ) : (
+                  filteredClients.map((client, index) => (
+                    <tr key={client.id} className="hover:bg-slate-900/30 transition-colors group">
+                      <td className="py-4 px-4 text-center font-bold text-slate-500 group-hover:text-slate-400 transition-colors">
+                        {index + 1}
+                      </td>
+
+                      {/* 🔗 TIKLANABİLİR MÜŞTERİ / FİRMA ADI */}
+                      <td className="py-4 px-4 font-bold text-white tracking-wide max-w-xs truncate">
+                        <Link 
+                          href={`/clients/${client.id}`}
+                          title="Müşteri detaylarına ve aktivite notlarına git"
+                          className="hover:text-indigo-400 transition-colors hover:underline cursor-pointer"
+                        >
+                          {client.company_name}
+                        </Link>
+                      </td>
+
+                      <td className="py-4 px-4 font-medium text-slate-200 whitespace-nowrap">
+                        {client.contact_person || '-'}
+                      </td>
+                      <td className="py-4 px-4 font-medium text-slate-300 max-w-[150px] truncate">
+                        {client.position ? `💼 ${client.position}` : '-'}
+                      </td>
+                      <td className="py-4 px-4 font-medium text-slate-300 whitespace-nowrap">
+                        {client.city || client.district ? (
+                          <span>
+                            {client.city || '-'}{' '}
+                            <span className="text-zinc-500 text-[11px]">
+                              ({client.district || '-'})
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="text-zinc-600">—</span>
+                        )}
+                      </td>
+                      
+                      {/* 🛠️ YENİLENEN, DAHA OKUNABİLİR İLETİŞİM HÜCRESİ */}
+                      <td className="py-4 px-4 space-y-1.5 max-w-[220px]">
+                        {client.email && (
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-indigo-400 text-[11px] select-none shrink-0">✉️</span>
+                            <span 
+                              className="text-indigo-300 hover:text-indigo-200 text-[11px] font-medium truncate select-all transition-colors tracking-wide" 
+                              title={client.email}
+                            >
+                              {client.email}
+                            </span>
+                          </div>
+                        )}
+                        {client.phone && (
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-slate-500 text-[11px] select-none shrink-0">📞</span>
+                            <span className="text-slate-300 font-mono text-[11px] tracking-wider truncate select-all">
+                              {client.phone}
+                            </span>
+                          </div>
+                        )}
+                        {!client.email && !client.phone && (
+                          <span className="text-slate-600 font-medium">—</span>
+                        )}
+                      </td>
+
+                      <td className="py-4 px-4 text-slate-400 font-mono text-[11px] whitespace-nowrap">
+                        {formatDateTime(client.created_at)}
+                      </td>
+                      <td className="py-4 px-4 text-center whitespace-nowrap">
+                        <span className={`inline-block px-2.5 py-1 rounded text-[10px] font-black tracking-wide uppercase border ${
+                          client.status === 'Aktif Müşteri' 
+                            ? 'bg-emerald-950/40 text-emerald-400 border-emerald-900/50' 
+                            : client.status === 'Pasif' 
+                            ? 'bg-zinc-900 text-zinc-500 border-zinc-800' 
+                            : 'bg-indigo-950/40 text-indigo-400 border-indigo-900/50'
+                        }`}>
+                          {client.status || 'Potansiyel'}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-center font-bold text-slate-300 whitespace-nowrap">
+                        {formatUpdatedBy(client.updated_by)}
+                      </td>
+                      <td className="py-4 px-4 text-right pr-6 space-x-1.5 whitespace-nowrap">
+                        <button 
+                          title='Detay'
+                          onClick={() => router.push(`/clients/${client.id}`)}
+                          className="bg-[#1c263c] hover:bg-[#253250] text-slate-200 hover:text-white font-bold text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-700/60 transition-colors cursor-pointer"
+                        >
+                          🔍 
+                        </button>
+                        <button 
+                          title='Düzenle'
+                          onClick={() => openEditModal(client)}
+                          className="bg-[#1c263c] hover:bg-[#253250] text-amber-400 hover:text-amber-300 font-bold text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-700/60 transition-colors cursor-pointer"
+                        >
+                          ✏️ 
+                        </button>
+                        <button 
+                          title='Sil'
+                          onClick={() => handleDeleteClient(client.id, client.company_name)}
+                          className="bg-red-950/40 hover:bg-red-900/60 border border-red-900/50 text-red-400 hover:text-red-300 font-bold text-[11px] px-2.5 py-1.5 rounded-lg transition-all cursor-pointer shadow-sm"
+                        >
+                          🗑️ 
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
       </div>

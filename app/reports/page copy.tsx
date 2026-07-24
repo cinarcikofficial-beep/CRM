@@ -11,7 +11,7 @@ interface ActivityReportData {
   notes: string | null;
   activity_date: string;
   client_id: string;
-  updated_by: string | null; // Kim tarafından oluşturulduğu bilgisi eklendi
+  updated_by: string | null;
   clients: {
     company_name: string;
     contact_person: string | null;
@@ -57,7 +57,7 @@ export default function ReportsPage() {
             company_name,
             contact_person
           )
-        `) // updated_by alanı sorguya eklendi
+        `)
         .order('activity_date', { ascending: false });
 
       if (error) throw error;
@@ -127,21 +127,29 @@ export default function ReportsPage() {
     return true;
   });
 
-  // İstatistik Sayaçlarının Hesaplanması (Zaman filtresine göre dinamik)
+  // İstatistik Sayaçlarının Hesaplanması (Mail Dönüş öncelikli ayıklandı)
   const stats = timeFilteredActivities.reduce(
     (acc, act) => {
       acc.total += 1;
       const currentType = act.type || '';
       
-      if (currentType.includes('Telefon')) acc.telefon += 1;
-      else if (currentType.includes('Mail') || currentType.includes('E-posta') || currentType.includes('E-Posta')) acc.mail += 1;
-      else if (currentType.includes('Toplantı')) acc.toplanti += 1;
-      else if (currentType.includes('Teklif')) acc.teklif += 1;
-      else acc.sms += 1;
+      if (currentType.includes('Dönüş') || currentType.includes('Donus')) {
+        acc.mailDonus += 1;
+      } else if (currentType.includes('Telefon')) {
+        acc.telefon += 1;
+      } else if (currentType.includes('Mail') || currentType.includes('E-posta') || currentType.includes('E-Posta')) {
+        acc.mail += 1;
+      } else if (currentType.includes('Toplantı')) {
+        acc.toplanti += 1;
+      } else if (currentType.includes('Teklif')) {
+        acc.teklif += 1;
+      } else {
+        acc.mailDonus += 1;
+      }
       
       return acc;
     },
-    { total: 0, telefon: 0, mail: 0, toplanti: 0, teklif: 0, sms: 0 }
+    { total: 0, telefon: 0, mail: 0, toplanti: 0, teklif: 0, mailDonus: 0 }
   );
 
   // 2. Kademe: Kart Tıklamasına Göre Tür Süzgeci
@@ -150,16 +158,21 @@ export default function ReportsPage() {
     const currentType = act.type || '';
     
     if (selectedType === 'Telefon') return currentType.includes('Telefon');
-    if (selectedType === 'Mail') return currentType.includes('Mail') || currentType.includes('E-posta') || currentType.includes('E-Posta');
+    if (selectedType === 'Mail') {
+      return (currentType.includes('Mail') || currentType.includes('E-posta') || currentType.includes('E-Posta')) && 
+             !currentType.includes('Dönüş') && !currentType.includes('Donus');
+    }
     if (selectedType === 'Toplantı') return currentType.includes('Toplantı');
     if (selectedType === 'Teklif') return currentType.includes('Teklif');
-    if (selectedType === 'SMS') {
-      return !currentType.includes('Telefon') && 
-             !currentType.includes('Mail') && 
-             !currentType.includes('E-posta') && 
-             !currentType.includes('E-Posta') && 
-             !currentType.includes('Toplantı') && 
-             !currentType.includes('Teklif');
+    if (selectedType === 'Mail Dönüş') {
+      return currentType.includes('Dönüş') || currentType.includes('Donus') || (
+        !currentType.includes('Telefon') && 
+        !currentType.includes('Toplantı') && 
+        !currentType.includes('Teklif') &&
+        !currentType.includes('Mail') &&
+        !currentType.includes('E-posta') &&
+        !currentType.includes('E-Posta')
+      );
     }
     return currentType === selectedType;
   });
@@ -170,7 +183,6 @@ export default function ReportsPage() {
     return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   };
 
-  // E-posta adresini veya kullanıcı adını maskeleyen fonksiyon
   const formatUpdatedBy = (emailOrId: string | null) => {
     if (!emailOrId) return 'Sistem';
     if (emailOrId.includes('@')) {
@@ -212,7 +224,7 @@ export default function ReportsPage() {
     bodyText += `✉️ E-posta: ${stats.mail}\n`;
     bodyText += `🤝 Toplantı: ${stats.toplanti}\n`;
     bodyText += `📄 Teklif Atma: ${stats.teklif}\n`;
-    bodyText += `💬 SMS / WP: ${stats.sms}\n\n`;
+    bodyText += `↩️ Mail Dönüş: ${stats.mailDonus}\n\n`;
     
     bodyText += `--- İŞLEM KRONOLOJİSİ ---\n`;
     finalFilteredActivities.forEach((act, index) => {
@@ -380,15 +392,15 @@ export default function ReportsPage() {
           </div>
 
           <div 
-            onClick={() => toggleTypeFilter('SMS')}
+            onClick={() => toggleTypeFilter('Mail Dönüş')}
             className={`p-5 rounded-2xl shadow-xl cursor-pointer transition-all border duration-200 ${
-              selectedType === 'SMS' 
+              selectedType === 'Mail Dönüş' 
                 ? 'bg-[#1c263c] border-indigo-500 shadow-indigo-950/20' 
                 : 'bg-[#141d30] border-slate-800 hover:border-slate-700'
             }`}
           >
-            <span className="text-[10px] text-slate-500 uppercase font-black tracking-wider block mb-1">💬 SMS / WP</span>
-            <span className="text-2xl font-black text-purple-400">{stats.sms}</span>
+            <span className="text-[10px] text-slate-500 uppercase font-black tracking-wider block mb-1">↩️ Mail Dönüş</span>
+            <span className="text-2xl font-black text-purple-400">{stats.mailDonus}</span>
           </div>
         </div>
 
@@ -427,10 +439,11 @@ export default function ReportsPage() {
                   <div className="flex flex-wrap justify-between items-center gap-2 border-b border-slate-850 pb-2 print:border-zinc-200">
                     <div className="flex items-center gap-3">
                       <span className="text-[10px] font-black tracking-wide px-2.5 py-1 rounded-lg bg-indigo-955/40 text-indigo-400 border border-indigo-900/40 uppercase print:bg-zinc-100 print:border-zinc-300 print:text-black">
-                        {act.type?.includes('Telefon') ? '📞 Telefon' : 
+                        {act.type?.includes('Dönüş') || act.type?.includes('Donus') ? '↩️ Mail Dönüş' : 
+                         act.type?.includes('Telefon') ? '📞 Telefon' : 
                          act.type?.includes('Mail') || act.type?.includes('E-posta') || act.type?.includes('E-Posta') ? '✉️ Mail' : 
                          act.type?.includes('Toplantı') ? '🤝 Toplantı' : 
-                         act.type?.includes('Teklif') ? '📄 Teklif' : '💬 SMS'}
+                         act.type?.includes('Teklif') ? '📄 Teklif' : '↩️ Mail Dönüş'}
                       </span>
                       <span className="text-xs font-black text-white hover:underline cursor-pointer print:text-black" onClick={() => router.push(`/clients/${act.client_id}`)}>
                         {act.clients?.company_name || 'Bilinmeyen Müşteri'}
@@ -440,7 +453,6 @@ export default function ReportsPage() {
                       )}
                     </div>
                     
-                    {/* Tarih bilgisi sağda kalacak şekilde */}
                     <span className="text-[10px] text-slate-400 font-mono print:text-zinc-600">{formatDateTime(act.activity_date)}</span>
                   </div>
                   
@@ -448,7 +460,6 @@ export default function ReportsPage() {
                     "{act.notes}"
                   </p>
 
-                  {/* KARTIN ALTINA OLUŞTURAN KULLANICI BİLGİSİ EKLENDİ */}
                   <div className="flex justify-end text-[10px] text-slate-500 pt-1 print:text-zinc-600">
                     <span className="font-black text-slate-400 bg-[#0d1321] border border-slate-800/60 px-2 py-0.5 rounded flex items-center gap-1 print:bg-transparent print:border-none print:text-zinc-700">
                       👤 {formatUpdatedBy(act.updated_by)}
