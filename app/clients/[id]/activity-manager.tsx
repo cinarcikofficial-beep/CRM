@@ -75,6 +75,7 @@ function AddActivityForm({ clientId, onActivityAdded }: AddClientFormProps) {
               <option value="Telefon">📞 Telefon</option>
               <option value="Toplantı">🤝 Toplantı</option>
               <option value="SMS / WP">💬 SMS / WP</option>
+              <option value="Sipariş Alındı">📦 Sipariş Alındı</option>
             </select>
           </div>
           <div className="space-y-1">

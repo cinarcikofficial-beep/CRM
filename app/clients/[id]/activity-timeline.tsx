@@ -79,6 +79,7 @@ export default function ActivityTimeline({ initialActivities }: { initialActivit
                       {activity.type === 'E-posta' && '📧'}
                       {activity.type === 'Toplantı' && '🤝'}
                       {activity.type === 'Teklif İletildi' && '📄'}
+                      {activity.type === 'Sipariş Alındı' && '📦'}
                     </span>
                   </div>
 

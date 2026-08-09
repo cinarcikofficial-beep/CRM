@@ -133,7 +133,9 @@ export default function ReportsPage() {
       acc.total += 1;
       const currentType = act.type || '';
       
-      if (currentType.includes('Dönüş') || currentType.includes('Donus')) {
+      if (currentType.includes('Sipariş') || currentType.includes('Siparis')) {
+        acc.siparis += 1;
+      } else if (currentType.includes('Dönüş') || currentType.includes('Donus')) {
         acc.mailDonus += 1;
       } else if (currentType.includes('Telefon')) {
         acc.telefon += 1;
@@ -149,7 +151,7 @@ export default function ReportsPage() {
       
       return acc;
     },
-    { total: 0, telefon: 0, mail: 0, toplanti: 0, teklif: 0, mailDonus: 0 }
+    { total: 0, telefon: 0, mail: 0, toplanti: 0, teklif: 0, mailDonus: 0, siparis: 0 }
   );
 
   // 2. Kademe: Kart Tıklamasına Göre Tür Süzgeci
@@ -164,6 +166,7 @@ export default function ReportsPage() {
     }
     if (selectedType === 'Toplantı') return currentType.includes('Toplantı');
     if (selectedType === 'Teklif') return currentType.includes('Teklif');
+    if (selectedType === 'Sipariş') return currentType.includes('Sipariş') || currentType.includes('Siparis');
     if (selectedType === 'Mail Dönüş') {
       return currentType.includes('Dönüş') || currentType.includes('Donus') || (
         !currentType.includes('Telefon') && 
@@ -171,7 +174,9 @@ export default function ReportsPage() {
         !currentType.includes('Teklif') &&
         !currentType.includes('Mail') &&
         !currentType.includes('E-posta') &&
-        !currentType.includes('E-Posta')
+        !currentType.includes('E-Posta') &&
+        !currentType.includes('Sipariş') &&
+        !currentType.includes('Siparis')
       );
     }
     return currentType === selectedType;
@@ -337,7 +342,7 @@ export default function ReportsPage() {
         </div>
 
         {/* METRİK SAYAÇ KARTLARI */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 print:grid-cols-6 print:gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4 print:grid-cols-7 print:gap-2">
           <div 
             onClick={() => setSelectedType(null)}
             className={`p-5 rounded-2xl shadow-xl cursor-pointer transition-all border duration-200 ${
@@ -409,6 +414,18 @@ export default function ReportsPage() {
             <span className="text-[10px] text-slate-500 uppercase font-black tracking-wider block mb-1">↩️ Mail Dönüş</span>
             <span className="text-2xl font-black text-purple-400">{stats.mailDonus}</span>
           </div>
+
+          <div 
+            onClick={() => toggleTypeFilter('Sipariş')}
+            className={`p-5 rounded-2xl shadow-xl cursor-pointer transition-all border duration-200 ${
+              selectedType === 'Sipariş' 
+                ? 'bg-[#1c263c] border-indigo-500 shadow-indigo-950/20' 
+                : 'bg-[#141d30] border-slate-800 hover:border-slate-700'
+            }`}
+          >
+            <span className="text-[10px] text-slate-500 uppercase font-black tracking-wider block mb-1">📦 Sipariş Alındı</span>
+            <span className="text-2xl font-black text-orange-400">{stats.siparis}</span>
+          </div>
         </div>
 
         {/* DİNAMİK KRONOLOJİ AKIŞ PANELİ */}
@@ -446,7 +463,8 @@ export default function ReportsPage() {
                   <div className="flex flex-wrap justify-between items-center gap-2 border-b border-slate-850 pb-2 print:border-zinc-200">
                     <div className="flex items-center gap-3">
                       <span className="text-[10px] font-black tracking-wide px-2.5 py-1 rounded-lg bg-indigo-955/40 text-indigo-400 border border-indigo-900/40 uppercase print:bg-zinc-100 print:border-zinc-300 print:text-black">
-                        {act.type?.includes('Dönüş') || act.type?.includes('Donus') ? '↩️ Mail Dönüş' : 
+                        {act.type?.includes('Sipariş') || act.type?.includes('Siparis') ? '📦 Sipariş Alındı' : 
+                         act.type?.includes('Dönüş') || act.type?.includes('Donus') ? '↩️ Mail Dönüş' : 
                          act.type?.includes('Telefon') ? '📞 Telefon' : 
                          act.type?.includes('Mail') || act.type?.includes('E-posta') || act.type?.includes('E-Posta') ? '✉️ Mail' : 
                          act.type?.includes('Toplantı') ? '🤝 Toplantı' : 

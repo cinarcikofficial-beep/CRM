@@ -479,6 +479,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
                   <option value="Toplantı">🤝 Toplantı</option>
                   <option value="Teklif Atma">📄 Teklif Atma</option>
                   <option value="Mail Dönüş">📬 Mail Dönüş</option>
+                  <option value="Sipariş Alındı">📦 Sipariş Alındı</option>
                 </select>
               </div>
 
@@ -603,6 +604,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
                   <option value="Toplantı">🤝 Toplantı</option>
                   <option value="Teklif Atma">📄 Teklif Atma</option>
                   <option value="Mail Dönüş">📬 Mail Dönüş</option>
+                  <option value="Sipariş Alındı">📦 Sipariş Alındı</option>
                 </select>
               </div>
 
