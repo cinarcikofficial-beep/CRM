@@ -50,6 +50,7 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<ClientData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
 
   // Hatırlatma State'leri
   const [reminders, setReminders] = useState<ReminderData[]>([]);
@@ -392,6 +393,7 @@ export default function ClientsPage() {
   const futureReminders = reminders.filter(r => new Date(r.next_followup_date) > todayEnd);
 
   const filteredClients = clients.filter((client) => {
+    if (selectedStatus && client.status !== selectedStatus) return false;
     const searchLower = searchQuery.toLowerCase();
     const cityStr = client.city ? client.city.toLowerCase() : '';
     const districtStr = client.district ? client.district.toLowerCase() : '';
@@ -406,6 +408,13 @@ export default function ClientsPage() {
       districtStr.includes(searchLower)       
     );
   });
+
+  const clientStats = {
+    total: clients.length,
+    potansiyel: clients.filter(c => c.status === 'Potansiyel').length,
+    aktif: clients.filter(c => c.status === 'Aktif Müşteri').length,
+    pasif: clients.filter(c => c.status === 'Pasif').length,
+  };
 
   return (
     <div className="min-h-screen bg-[#0d1321] text-slate-100 p-6 relative font-sans antialiased overflow-x-hidden">
@@ -692,6 +701,54 @@ export default function ClientsPage() {
               {isSubmitting ? '...' : '+ Oluştur'}
             </button>
           </form>
+        </div>
+
+        {/* MÜŞTERİ İSTATİSTİK KARTLARI */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div 
+            onClick={() => setSelectedStatus(null)}
+            className={`p-5 rounded-2xl shadow-xl cursor-pointer transition-all border duration-200 ${
+              selectedStatus === null 
+                ? 'bg-[#1c263c] border-indigo-500 shadow-indigo-950/20' 
+                : 'bg-[#141d30] border-slate-800 hover:border-slate-700'
+            }`}
+          >
+            <span className="text-[10px] text-slate-500 uppercase font-black tracking-wider block mb-1">Toplam Müşteri</span>
+            <span className="text-2xl font-black text-white">{clientStats.total}</span>
+          </div>
+          <div 
+            onClick={() => setSelectedStatus(selectedStatus === 'Potansiyel' ? null : 'Potansiyel')}
+            className={`p-5 rounded-2xl shadow-xl cursor-pointer transition-all border duration-200 ${
+              selectedStatus === 'Potansiyel' 
+                ? 'bg-[#1c263c] border-indigo-500 shadow-indigo-950/20' 
+                : 'bg-[#141d30] border-slate-800 hover:border-slate-700'
+            }`}
+          >
+            <span className="text-[10px] text-slate-500 uppercase font-black tracking-wider block mb-1">Potansiyel</span>
+            <span className="text-2xl font-black text-amber-400">{clientStats.potansiyel}</span>
+          </div>
+          <div 
+            onClick={() => setSelectedStatus(selectedStatus === 'Aktif Müşteri' ? null : 'Aktif Müşteri')}
+            className={`p-5 rounded-2xl shadow-xl cursor-pointer transition-all border duration-200 ${
+              selectedStatus === 'Aktif Müşteri' 
+                ? 'bg-[#1c263c] border-indigo-500 shadow-indigo-950/20' 
+                : 'bg-[#141d30] border-slate-800 hover:border-slate-700'
+            }`}
+          >
+            <span className="text-[10px] text-slate-500 uppercase font-black tracking-wider block mb-1">Aktif Müşteri</span>
+            <span className="text-2xl font-black text-emerald-400">{clientStats.aktif}</span>
+          </div>
+          <div 
+            onClick={() => setSelectedStatus(selectedStatus === 'Pasif' ? null : 'Pasif')}
+            className={`p-5 rounded-2xl shadow-xl cursor-pointer transition-all border duration-200 ${
+              selectedStatus === 'Pasif' 
+                ? 'bg-[#1c263c] border-indigo-500 shadow-indigo-950/20' 
+                : 'bg-[#141d30] border-slate-800 hover:border-slate-700'
+            }`}
+          >
+            <span className="text-[10px] text-slate-500 uppercase font-black tracking-wider block mb-1">Pasif</span>
+            <span className="text-2xl font-black text-red-400">{clientStats.pasif}</span>
+          </div>
         </div>
 
         {/* FİLTRELEME VE ARAMA ALANI */}
