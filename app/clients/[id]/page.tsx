@@ -263,7 +263,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
     try {
       const res = await fetch('/api/auth/logout', { method: 'POST' });
       if (res.ok) {
-        router.push('/register');
+        router.push('/login');
         router.refresh();
       }
     } catch (err) {

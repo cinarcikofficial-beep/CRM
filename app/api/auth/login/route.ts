@@ -1,10 +1,23 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { checkRateLimit } from '@/utils/rate-limit'
 
 export async function POST(request: Request) {
   try {
-    const cookieStore = await cookies() // Next.js 15+ için await ekledik
+    // Rate limiting kontrolü
+    const forwarded = request.headers.get('x-forwarded-for')
+    const ip = forwarded ? forwarded.split(',')[0].trim() : '127.0.0.1'
+    const rateCheck = checkRateLimit(ip)
+
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        { error: `Çok fazla deneme yapıldı. Lütfen ${Math.ceil((rateCheck.retryAfterMs || 0) / 60000)} dakika bekleyin.` },
+        { status: 429 }
+      )
+    }
+
+    const cookieStore = await cookies()
     const { email, password } = await request.json()
 
     // 1. ADIM: Boş bir Next.js response nesnesi oluşturuyoruz

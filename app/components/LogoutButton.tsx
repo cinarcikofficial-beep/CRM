@@ -9,19 +9,20 @@ export default function LogoutButton() {
 
   const handleLogout = async () => {
     if (loading) return;
-    setLoading(false);
+    setLoading(true);
     
     // Emin olmak için kullanıcıya soralım
     const confirmLogout = confirm('Çıkış yapmak istediğinize emin misiniz?');
-    if (!confirmLogout) return;
+    if (!confirmLogout) {
+      setLoading(false);
+      return;
+    }
 
-    setLoading(true);
     try {
       const res = await fetch('/api/auth/logout', { method: 'POST' });
       
       if (res.ok) {
-        // Oturumu sıfırlayıp yönlendirme yapıyoruz
-        router.push('/register');
+        router.push('/login');
         router.refresh();
       } else {
         alert('Çıkış işlemi başarısız oldu.');

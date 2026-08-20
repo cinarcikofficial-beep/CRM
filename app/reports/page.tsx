@@ -83,7 +83,7 @@ export default function ReportsPage() {
         try {
           const res = await fetch('/api/auth/logout', { method: 'POST' });
           if (res.ok) {
-            router.push('/register');
+            router.push('/login');
             router.refresh();
           } else {
             setCustomAlert('Çıkış yapılırken bir hata oluştu.');

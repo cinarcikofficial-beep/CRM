@@ -50,13 +50,13 @@ export async function middleware(request: NextRequest) {
     // 🖥️ VS CODE TERMİNALİNDE GÖRECEĞİN LOG (Canlı takip için)
     console.log(`[CRM AKTİF KONTROL] Sayfa: ${pathname} | Durum: ${user ? 'GİRİŞ YAPMIŞ (' + user.email + ')' : 'GİRİŞ YOK'}`)
 
-    const isRegisterPage = pathname === '/register'
+    const isAuthPage = pathname === '/register' || pathname === '/login'
 
     // DURUM 1: Kullanıcı giriş yapmadıysa ve korumalı alandaysa -> Giriş ekranına zorla
-    if (!user && !isRegisterPage) {
-      console.log(`[CRM ENGEL] 🚫 Yetkisiz Giriş! ${pathname} -> /register sayfasına yönlendiriliyor...`)
+    if (!user && !isAuthPage) {
+      console.log(`[CRM ENGEL] 🚫 Yetkisiz Giriş! ${pathname} -> /login sayfasına yönlendiriliyor...`)
       const url = request.nextUrl.clone()
-      url.pathname = '/register'
+      url.pathname = '/login'
       
       const redirectResponse = NextResponse.redirect(url)
       // 🔐 KRİTİK NOKTA: Çerezleri yönlendirme isteğine kopyalıyoruz ki havada kaybolmasın!
@@ -65,8 +65,8 @@ export async function middleware(request: NextRequest) {
     }
 
     // DURUM 2: Kullanıcı zaten giriş yaptıysa ve hala giriş sayfasındaysa -> İçeri fırlat
-    if (user && isRegisterPage) {
-      console.log(`[CRM GEÇİŞ] ✅ Zaten giriş yapılmış! /register -> /clients alanına aktarılıyor...`)
+    if (user && isAuthPage) {
+      console.log(`[CRM GEÇİŞ] ✅ Zaten giriş yapılmış! ${pathname} -> /clients alanına aktarılıyor...`)
       const url = request.nextUrl.clone()
       url.pathname = '/clients'
       
