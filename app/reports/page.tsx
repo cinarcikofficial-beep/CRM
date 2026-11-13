@@ -10,6 +10,7 @@ interface ActivityReportData {
   type: string;
   notes: string | null;
   activity_date: string;
+  created_at?: string;
   client_id: string;
   updated_by: string | null;
   clients: {
@@ -44,24 +45,45 @@ export default function ReportsPage() {
   const fetchReportData = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('activities')
-        .select(`
-          id,
-          type,
-          notes,
-          activity_date,
-          client_id,
-          updated_by,
-          clients (
-            company_name,
-            contact_person
-          )
-        `)
-        .order('activity_date', { ascending: false });
+      const pageSize = 1000;
+      let allData: ActivityReportData[] = [];
+      let from = 0;
+      let hasMore = true;
 
-      if (error) throw error;
-      setActivities((data as any) || []);
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('activities')
+          .select(`
+            id,
+            type,
+            notes,
+            activity_date,
+            client_id,
+            updated_by,
+            clients (
+              company_name,
+              contact_person
+            )
+          `)
+          .order('activity_date', { ascending: false })
+          .order('id', { ascending: false })
+          .range(from, from + pageSize - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allData = [...allData, ...(data as any)];
+          if (data.length < pageSize) {
+            hasMore = false;
+          } else {
+            from += pageSize;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      setActivities(allData);
     } catch (error: any) {
       setCustomAlert('Rapor verileri yüklenirken hata oluştu: ' + error.message);
     } finally {
@@ -101,27 +123,31 @@ export default function ReportsPage() {
 
   // 1. Kademe: Zaman Aralığı Filtreleme
   const timeFilteredActivities = activities.filter((act) => {
-    const actDate = new Date(act.activity_date);
+    const rawDate = act.activity_date || act.created_at;
+    if (!rawDate) return filterRange === 'all';
+
+    const actDate = new Date(rawDate);
     const now = new Date();
 
     if (filterRange === 'daily') {
       return actDate.toDateString() === now.toDateString();
     }
     if (filterRange === 'weekly') {
-      const oneWeekAgo = new Date();
+      const oneWeekAgo = new Date(now);
       oneWeekAgo.setDate(now.getDate() - 7);
+      oneWeekAgo.setHours(0, 0, 0, 0);
       return actDate >= oneWeekAgo;
     }
     if (filterRange === 'monthly') {
-      const oneMonthAgo = new Date();
+      const oneMonthAgo = new Date(now);
       oneMonthAgo.setMonth(now.getMonth() - 1);
+      oneMonthAgo.setHours(0, 0, 0, 0);
       return actDate >= oneMonthAgo;
     }
     if (filterRange === 'custom') {
       if (!startDate && !endDate) return true;
-      let start = startDate ? new Date(startDate) : new Date('1970-01-01');
-      let end = endDate ? new Date(endDate) : new Date();
-      end.setHours(23, 59, 59, 999);
+      const start = startDate ? new Date(`${startDate}T00:00:00`) : new Date(0);
+      const end = endDate ? new Date(`${endDate}T23:59:59.999`) : new Date();
       return actDate >= start && actDate <= end;
     }
     return true;
@@ -182,9 +208,10 @@ export default function ReportsPage() {
     return currentType === selectedType;
   });
 
-  const formatDateTime = (dateStr: string) => {
+  const formatDateTime = (dateStr?: string | null) => {
     if (!dateStr) return '-';
     const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '-';
     return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   };
 
@@ -216,7 +243,7 @@ export default function ReportsPage() {
   };
 
   const handleSendEmail = () => {
-    const displayType = selectedType === 'Teklif' ? 'Teklif Atma' : selectedType || 'Tümü';
+    const displayType = selectedType === 'Teklif' ? 'Teklif Atma' : selectedType === 'Sipariş' ? 'Sipariş Alındı' : selectedType || 'Tümü';
     const subject = encodeURIComponent(`CRM Aktivite Raporu - ${getPeriodText()}`);
     let bodyText = `CRM AKTIVITE RAPORU\n\n`;
     bodyText += `Rapor Tipi: ${getPeriodText()}\n`;
@@ -229,12 +256,20 @@ export default function ReportsPage() {
     bodyText += `✉️ E-posta: ${stats.mail}\n`;
     bodyText += `🤝 Toplantı: ${stats.toplanti}\n`;
     bodyText += `📄 Teklif Atma: ${stats.teklif}\n`;
-    bodyText += `↩️ Mail Dönüş: ${stats.mailDonus}\n\n`;
+    bodyText += `↩️ Mail Dönüş: ${stats.mailDonus}\n`;
+    bodyText += `📦 Sipariş Alındı: ${stats.siparis}\n\n`;
     
-    bodyText += `--- İŞLEM KRONOLOJİSİ ---\n`;
-    finalFilteredActivities.forEach((act, index) => {
-      bodyText += `${index + 1}) [${act.type}] ${act.clients?.company_name || 'Müşteri'} - ${formatDateTime(act.activity_date)} (Ekleyen: ${formatUpdatedBy(act.updated_by)})\nNot: ${act.notes || '-'}\n\n`;
+    const maxEmailItems = 30;
+    const itemsToInclude = finalFilteredActivities.slice(0, maxEmailItems);
+
+    bodyText += `--- İŞLEM KRONOLOJİSİ (${finalFilteredActivities.length > maxEmailItems ? `İlk ${maxEmailItems} / Toplam ${finalFilteredActivities.length}` : `${finalFilteredActivities.length} Kayıt`}) ---\n`;
+    itemsToInclude.forEach((act, index) => {
+      bodyText += `${index + 1}) [${act.type}] ${act.clients?.company_name || 'Müşteri'} - ${formatDateTime(act.activity_date || act.created_at)} (Ekleyen: ${formatUpdatedBy(act.updated_by)})\nNot: ${act.notes || '-'}\n\n`;
     });
+
+    if (finalFilteredActivities.length > maxEmailItems) {
+      bodyText += `... ve ${finalFilteredActivities.length - maxEmailItems} kayıt daha bulunmaktadır. (Tam liste için Yazdır / PDF özelliğini kullanabilirsiniz.)\n`;
+    }
 
     window.location.href = `mailto:?subject=${subject}&body=${encodeURIComponent(bodyText)}`;
   };
@@ -478,7 +513,7 @@ export default function ReportsPage() {
                       )}
                     </div>
                     
-                    <span className="text-[10px] text-slate-400 font-mono print:text-zinc-600">{formatDateTime(act.activity_date)}</span>
+                    <span className="text-[10px] text-slate-400 font-mono print:text-zinc-600">{formatDateTime(act.activity_date || act.created_at)}</span>
                   </div>
                   
                   <p className="text-xs text-slate-300 leading-relaxed italic bg-[#0d1321]/40 p-3 rounded-xl border border-slate-850 print:bg-transparent print:border-none print:p-0 print:text-black">
